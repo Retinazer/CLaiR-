@@ -1,0 +1,801 @@
+/**
+ * CLaiR — Main Application Logic & Screen Controllers
+ */
+
+// Global State
+let inventory = [];
+let suppliers = [];
+let salesData = { transactions: [], txCount: 0, unitsSold: 0, revenue: 0, topProduct: '—' };
+let profile = { name: '', business: '', role: 'Owner', locale: 'English', currency: 'IDR' };
+let userPos = null; // { lat, lng }
+let fcRange = '1d';
+let invFilter = 'all';
+let invQuery = '';
+let histDays = 30;
+let map = null;
+let markerLayer = null;
+let youMarker = null;
+
+const DEFAULT_CENTER = [-6.2088, 106.8456]; // Jakarta fallback center
+
+// ============================================================================
+// Core Navigation & Landing Page
+// ============================================================================
+
+function enterApp() {
+  document.body.classList.add('in-app');
+  history.replaceState(null, '', '#app');
+}
+
+function goHome() {
+  document.body.classList.remove('in-app');
+  history.replaceState(null, '', location.pathname);
+}
+
+function goScreen(name) {
+  const b = document.querySelector(`.nav-item[data-screen="${name}"]`);
+  if (b) b.click();
+}
+
+// ============================================================================
+// Data Synchronization
+// ============================================================================
+
+async function syncProfile() {
+  try {
+    profile = await API.getProfile();
+    window.currentProfile = profile;
+    applyProfile();
+  } catch (err) {
+    console.error('Error syncing profile:', err);
+  }
+}
+
+async function syncInventory() {
+  try {
+    inventory = await API.getInventory();
+    renderInventory();
+    renderRestock();
+    updateDatalists();
+  } catch (err) {
+    console.error('Error syncing inventory:', err);
+  }
+}
+
+async function syncSales() {
+  try {
+    salesData = await API.getSales(histDays);
+    renderHistory();
+  } catch (err) {
+    console.error('Error syncing sales:', err);
+  }
+}
+
+async function syncSuppliers() {
+  try {
+    suppliers = await API.getSuppliers();
+    renderSuppliers();
+  } catch (err) {
+    console.error('Error syncing suppliers:', err);
+  }
+}
+
+async function syncAll() {
+  await Promise.all([syncProfile(), syncInventory(), syncSales(), syncSuppliers()]);
+  await renderOverview();
+}
+
+function updateDatalists() {
+  const opts = inventory
+    .map((it) => `<option value="${esc(it.name)}">${esc(it.sku)} (${it.qty} ${esc(it.unit)} on hand)</option>`)
+    .join('');
+  if ($('hist-item-list')) $('hist-item-list').innerHTML = opts;
+  if ($('inp-sale-list')) $('inp-sale-list').innerHTML = opts;
+}
+
+// ============================================================================
+// Overview & Forecast
+// ============================================================================
+
+function renderForecastAxis() {
+  const L = 52, R = 690, T = 16, B = 226, now = new Date();
+  let labels;
+  if (fcRange === '1d') {
+    labels = ['6am', '9am', '12pm', '3pm', '6pm', '9pm'];
+  } else if (fcRange === '1w') {
+    labels = Array.from({ length: 7 }, (_, i) => DOW[new Date(now.getTime() + i * 864e5).getDay()]);
+  } else {
+    labels = Array.from({ length: 6 }, (_, i) => fmtMD(new Date(now.getTime() - (29 - i * 5.8) * 864e5)));
+  }
+
+  const ticks = [100, 75, 50, 25, 0];
+  let g = '';
+  ticks.forEach((v, i) => {
+    const y = T + ((B - T) * i) / (ticks.length - 1);
+    g +=
+      `<line x1="${L}" y1="${y}" x2="${R}" y2="${y}" stroke="${v === 0 ? '#007AFF' : '#D0E4F7'}" stroke-width="${v === 0 ? 1.5 : 1}"/>` +
+      `<text x="${L - 10}" y="${y + 4}" text-anchor="end" font-size="12" fill="#64748B">${v}</text>`;
+  });
+
+  const step = (R - L) / (labels.length - 1);
+  labels.forEach((t, i) => {
+    const x = L + step * i;
+    g +=
+      `<line x1="${x}" y1="${B}" x2="${x}" y2="${B + 5}" stroke="#007AFF"/>` +
+      `<text x="${x}" y="${B + 22}" text-anchor="${i === 0 ? 'start' : i === labels.length - 1 ? 'end' : 'middle'}" font-size="12" fill="#64748B">${t}</text>`;
+  });
+  g += `<line x1="${L}" y1="${T}" x2="${L}" y2="${B}" stroke="#007AFF" stroke-width="1.5"/>`;
+  $('fc-svg').innerHTML = g;
+}
+
+async function renderOverview() {
+  const now = new Date();
+  renderForecastAxis();
+
+  try {
+    const ov = await API.getOverview();
+    $('ov-greet').textContent = ov.greeting;
+    $('ov-date').textContent = fmtToday(now);
+    $('ov-risk').textContent = ov.riskCount;
+    $('ov-good').textContent = ov.healthyCount;
+
+    if (ov.todayDemand > 0) {
+      $('ov-demand').textContent = ov.todayDemand + ' units';
+      $('ov-demand').nextElementSibling.textContent =
+        ov.todayTransactions + ' transaction' + (ov.todayTransactions === 1 ? '' : 's') + ' today';
+    } else if (salesData.transactions && salesData.transactions.length > 0) {
+      $('ov-demand').textContent = '0 units';
+      $('ov-demand').nextElementSibling.textContent = 'No sales recorded today';
+    } else {
+      $('ov-demand').textContent = '—';
+      $('ov-demand').nextElementSibling.textContent = 'No sales data yet';
+    }
+
+    $('ov-rel').textContent = ov.reliability;
+    $('ov-rel').className = 'val ' + (ov.reliabilityClass || '');
+    $('ov-rel').nextElementSibling.textContent = ov.reliabilityText;
+
+    const total = ov.urgentCount;
+    $('ov-count').textContent = total ? `${total} item${total === 1 ? '' : 's'} need your attention` : '';
+    const host = $('ov-attn');
+
+    if (!inventory.length) {
+      host.innerHTML =
+        [0, 1]
+          .map(
+            (i) =>
+              `<div class="attn" style="border-left-color:#53C5F8;background:#EBF4FB;border-color:#D0E4F7"><span class="sk sk-pill"></span><div class="body"><span class="sk" style="width:${[38, 52][i]}%;margin-bottom:8px"></span><span class="sk" style="width:${[60, 44][i]}%;height:8px"></span></div></div>`
+          )
+          .join('') +
+        '<div class="sk-note"><b>Nothing needs attention yet</b>Add items in Inventory and anything running low will show up here.</div>';
+    } else if (!ov.urgentItems || !ov.urgentItems.length) {
+      host.innerHTML = '<div class="sk-note"><b>All clear</b>Every item is above its reorder point.</div>';
+    } else {
+      host.innerHTML = ov.urgentItems
+        .map((it) => {
+          const k = it.status || statusKey(it);
+          return (
+            `<div class="attn ${k}">${statusPill(k)}<div class="body"><b>${esc(it.name)}</b><small>${it.qty} ${esc(it.unit)} remaining · reorder at ${it.reorder}</small></div>` +
+            `<button class="${k === 'critical' ? 'btn-main' : 'btn-plain'}" data-go-restock>${k === 'critical' ? 'Restock' : 'View'}</button></div>`
+          );
+        })
+        .join('');
+      host.querySelectorAll('[data-go-restock]').forEach((b) => (b.onclick = () => goScreen('restock')));
+    }
+  } catch (err) {
+    console.error('Overview render error:', err);
+  }
+}
+
+// ============================================================================
+// Inventory Management
+// ============================================================================
+
+function statusCounts() {
+  const c = { critical: 0, low: 0, good: 0 };
+  inventory.forEach((it) => c[statusKey(it)]++);
+  return c;
+}
+
+function renderInventory() {
+  const c = statusCounts(), n = inventory.length;
+  $('inv-date').textContent = 'As of ' + fmtToday(new Date());
+  $('inv-sub').textContent = `${n} item${n === 1 ? '' : 's'} tracked · ${c.critical + c.low} below reorder point`;
+  $('inv-crit').textContent = c.critical;
+  $('inv-low').textContent = c.low;
+  $('inv-good').textContent = c.good;
+  $('inv-total').textContent = n;
+
+  const counts = { all: n, critical: c.critical, low: c.low, good: c.good };
+  document.querySelectorAll('#inv-tabs button').forEach((b) => {
+    b.querySelector('.cnt').textContent = counts[b.dataset.f];
+    b.classList.toggle('on', b.dataset.f === invFilter);
+  });
+
+  const wrap = $('inv-wrap');
+  const heads = ['Item', 'On hand', 'Daily demand', 'Days left', 'Trend', 'Status'];
+  if (!n) {
+    wrap.innerHTML = skTable(heads, 5, 'Use "+ New item" above to start tracking stock.', 'No inventory yet');
+    return;
+  }
+
+  const q = invQuery.trim().toLowerCase();
+  const rows = inventory
+    .map((it) => ({ it, k: statusKey(it) }))
+    .filter(
+      (r) =>
+        (invFilter === 'all' || r.k === invFilter) &&
+        (!q || r.it.name.toLowerCase().includes(q) || r.it.sku.toLowerCase().includes(q))
+    );
+
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="sk-note"><b>No items match</b>Try a different filter or search.</div>';
+    return;
+  }
+
+  wrap.innerHTML =
+    '<table><thead><tr><th>Item</th><th class="r">On hand</th><th class="r">Daily demand</th><th class="r">Days left</th><th>Trend</th><th>Status</th><th></th></tr></thead><tbody>' +
+    rows
+      .map(
+        ({ it, k }) =>
+          `<tr class="row-${k}"><td><b>${esc(it.name)}</b><small>${esc(it.sku)}</small></td>` +
+          `<td class="r"><span class="big">${it.qty}</span> <span class="unit">${esc(it.unit)}</span></td><td class="r dim">—</td><td class="r dim">—</td><td class="dim">—</td>` +
+          `<td>${statusPill(k)}</td><td class="act"><button class="icon-btn" data-add-sku="${esc(it.sku)}" title="Add stock" style="font-size:22px">+</button>` +
+          `<button class="icon-btn del" data-del-sku="${esc(it.sku)}" title="Remove item">${ico('trash', 16)}</button></td></tr>`
+      )
+      .join('') +
+    '</tbody></table>';
+
+  wrap.querySelectorAll('[data-add-sku]').forEach((b) => {
+    b.onclick = async () => {
+      const sku = b.dataset.addSku;
+      const it = inventory.find((i) => i.sku === sku);
+      if (!it) return;
+      const v = parseInt(prompt(`Add how many ${it.unit} of ${it.name}?`), 10);
+      if (!v || v <= 0) return;
+      try {
+        await API.updateStock(sku, v);
+        toast(`Added ${v} to ${it.sku}`);
+        await syncInventory();
+        await renderOverview();
+      } catch (err) {
+        toast('Error updating stock: ' + err.message);
+      }
+    };
+  });
+
+  wrap.querySelectorAll('[data-del-sku]').forEach((b) => {
+    b.onclick = async () => {
+      const sku = b.dataset.delSku;
+      if (!confirm(`Are you sure you want to delete SKU ${sku}?`)) return;
+      try {
+        await API.deleteInventoryItem(sku);
+        toast(`Item removed`);
+        await syncInventory();
+        await renderOverview();
+      } catch (err) {
+        toast('Error deleting item: ' + err.message);
+      }
+    };
+  });
+}
+
+// ============================================================================
+// Restock Signals
+// ============================================================================
+
+function restockList() {
+  return inventory.filter((it) => it.qty < it.reorder);
+}
+
+function renderRestock() {
+  const wrap = $('restock-wrap');
+  const low = restockList();
+  if (!inventory.length) {
+    wrap.innerHTML = skTable(
+      ['SKU', 'Item', 'On Hand', 'Reorder Pt', 'Suggested Qty'],
+      4,
+      'Add items to Inventory and CLaiR will flag the ones that fall below their reorder point.',
+      'Nothing to restock yet'
+    );
+  } else if (!low.length) {
+    wrap.innerHTML = skTable(
+      ['SKU', 'Item', 'On Hand', 'Reorder Pt', 'Suggested Qty'],
+      3,
+      'No items are below their reorder point right now.',
+      'All stocked up'
+    );
+  } else {
+    wrap.innerHTML =
+      '<table><thead><tr><th>SKU</th><th>Item</th><th>On Hand</th><th>Reorder Pt</th><th>Suggested Qty</th></tr></thead><tbody>' +
+      low
+        .map(
+          (it) =>
+            `<tr><td>${esc(it.sku)}</td><td>${esc(it.name)}</td><td>${it.qty}</td><td>${it.reorder}</td><td><b>${
+              it.reorder - it.qty
+            }</b></td></tr>`
+        )
+        .join('') +
+      '</tbody></table>';
+  }
+
+  const sel = $('restock-sku');
+  if (sel) {
+    sel.innerHTML = inventory.length
+      ? inventory.map((it) => `<option value="${esc(it.sku)}">${esc(it.sku)} ${esc(it.name)}</option>`).join('')
+      : '<option value="">No items yet</option>';
+  }
+  if ($('restock-form')) {
+    $('restock-form').style.display = inventory.length ? 'flex' : 'none';
+  }
+}
+
+// ============================================================================
+// Sales History
+// ============================================================================
+
+function renderHistory() {
+  const end = new Date(), start = new Date(end.getTime() - (histDays - 1) * 864e5);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+  $('hist-range').innerHTML = ico('calendar', 16) + ' ' + fmtMD(start) + ' – ' + fmtMD(end);
+  $('hist-sub').textContent = `Past ${histDays} days`;
+
+  const txCount = salesData.txCount || (salesData.transactions ? salesData.transactions.length : 0);
+  const unitsSold = salesData.unitsSold || 0;
+  const revenue = salesData.revenue || 0;
+  const topProd = salesData.topProduct || '—';
+
+  $('hs-tx').textContent = txCount;
+  $('hs-units').textContent = unitsSold.toLocaleString();
+  $('hs-rev').textContent = txCount ? fmtMoney(revenue) : '—';
+  $('hs-top').textContent = topProd;
+
+  const wrap = $('history-card');
+  const transactions = salesData.transactions || [];
+
+  if (!transactions.length) {
+    wrap.innerHTML = skTable(
+      ['Date', 'Item', 'Qty', 'Revenue'],
+      5,
+      'Use "+ Input Data" above to record sales.',
+      'No sales recorded yet'
+    );
+    return;
+  }
+
+  wrap.innerHTML =
+    '<table><thead><tr><th>Date</th><th>Item</th><th class="r">Qty</th><th class="r">Revenue</th><th></th></tr></thead><tbody>' +
+    transactions
+      .map((s, idx) => {
+        const id = s.id || idx;
+        return (
+          `<tr><td style="color:var(--muted);font-size:12px;">${esc(s.date)}</td>` +
+          `<td><b>${esc(s.item)}</b></td>` +
+          `<td class="r">${s.qty}</td>` +
+          `<td class="r price"><b>${fmtMoney(s.rev)}</b></td>` +
+          `<td class="act"><button class="icon-btn del" data-del-sale="${id}" title="Delete transaction">${ico(
+            'trash',
+            16
+          )}</button></td></tr>`
+        );
+      })
+      .join('') +
+    '</tbody></table>';
+
+  wrap.querySelectorAll('[data-del-sale]').forEach((b) => {
+    b.onclick = async () => {
+      const id = b.dataset.delSale;
+      try {
+        await API.deleteSale(id);
+        toast('Transaction removed');
+        await syncSales();
+        await renderOverview();
+      } catch (err) {
+        toast('Error removing sale: ' + err.message);
+      }
+    };
+  });
+}
+
+// ============================================================================
+// Suppliers & Map (Leaflet)
+// ============================================================================
+
+function renderSupplierCards() {
+  const host = $('supplier-cards');
+  if (!suppliers.length) {
+    host.innerHTML =
+      [0, 1, 2]
+        .map(
+          (i) =>
+            `<div class="sup-card sk-card"><span class="sk" style="width:${[60, 45, 70][i]}%"></span><span class="sk" style="width:${[35, 50, 30][i]}%;height:8px"></span></div>`
+        )
+        .join('') + '<div class="sk-note"><b>No suppliers yet</b>Click the map to pin your first supplier.</div>';
+    return;
+  }
+
+  host.innerHTML = suppliers
+    .map((s, i) => {
+      const d = userPos ? ' · ' + distKm(userPos, s).toFixed(1) + ' km away' : '';
+      const id = s.id || i;
+      return (
+        `<div class="sup-card"><div class="top"><b>${esc(s.name)}</b><button class="btn-sm" data-del-sup="${id}">Remove</button></div>` +
+        `<div class="meta">${esc(s.category || 'Supplier')}${d}</div></div>`
+      );
+    })
+    .join('');
+
+  host.querySelectorAll('[data-del-sup]').forEach((b) => {
+    b.onclick = async () => {
+      const id = b.dataset.delSup;
+      try {
+        await API.deleteSupplier(id);
+        toast('Supplier removed');
+        await syncSuppliers();
+      } catch (err) {
+        toast('Error deleting supplier: ' + err.message);
+      }
+    };
+  });
+}
+
+function renderMarkers() {
+  if (!map || !markerLayer) return;
+  markerLayer.clearLayers();
+  suppliers.forEach((s) => {
+    L.circleMarker([s.lat, s.lng], { radius: 8, color: '#fff', weight: 2, fillColor: '#007AFF', fillOpacity: 1 })
+      .bindTooltip(esc(s.name), { permanent: true, direction: 'bottom', offset: [0, 6] })
+      .addTo(markerLayer);
+  });
+}
+
+function renderSuppliers() {
+  renderSupplierCards();
+  renderMarkers();
+}
+
+function showSuppliers() {
+  if (typeof L === 'undefined') {
+    $('supplier-map').innerHTML =
+      '<div class="empty-note"><b>Map could not load</b>Check your internet connection and reload the page.</div>';
+    renderSupplierCards();
+    return;
+  }
+
+  if (!map) {
+    map = L.map('supplier-map').setView(DEFAULT_CENTER, 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    markerLayer = L.layerGroup().addTo(map);
+
+    map.on('click', async (ev) => {
+      const name = prompt('Supplier name?');
+      if (!name || !name.trim()) return;
+      const category = prompt('Category (e.g. Coffee, Dairy, Packaging)?') || '';
+      try {
+        await API.addSupplier({
+          name: name.trim(),
+          category: category.trim(),
+          lat: ev.latlng.lat,
+          lng: ev.latlng.lng
+        });
+        toast('Supplier added');
+        await syncSuppliers();
+      } catch (err) {
+        toast('Error adding supplier: ' + err.message);
+      }
+    });
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          userPos = { lat: p.coords.latitude, lng: p.coords.longitude };
+          map.setView([userPos.lat, userPos.lng], 13);
+          youMarker = L.circleMarker([userPos.lat, userPos.lng], {
+            radius: 8,
+            color: '#fff',
+            weight: 2,
+            fillColor: '#53C5F8',
+            fillOpacity: 1
+          })
+            .bindTooltip('You', { permanent: true, direction: 'bottom', offset: [0, 6] })
+            .addTo(map);
+          renderSupplierCards();
+        },
+        () => {},
+        { timeout: 8000 }
+      );
+    }
+  }
+
+  setTimeout(() => {
+    map.invalidateSize();
+    if (suppliers.length && !userPos) {
+      map.fitBounds(
+        suppliers.map((s) => [s.lat, s.lng]),
+        { padding: [40, 40], maxZoom: 15 }
+      );
+    }
+  }, 50);
+
+  renderSuppliers();
+}
+
+// ============================================================================
+// Profile & Settings
+// ============================================================================
+
+function applyProfile() {
+  $('set-name').value = profile.name || '';
+  $('set-biz').value = profile.business || '';
+  $('set-role').value = profile.role || 'Owner';
+  $('set-lang').value = profile.locale || 'English';
+  $('set-curr').value = profile.currency || 'IDR';
+  $('lang-top').value = profile.locale || 'English';
+  $('curr-top').value = profile.currency || 'IDR';
+  $('top-name').textContent = profile.name || 'Guest';
+  $('top-avatar').textContent = (profile.name || '?').slice(0, 1).toUpperCase();
+}
+
+// ============================================================================
+// Event Listeners & Initialization
+// ============================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Landing <-> App
+  document.querySelectorAll('[data-enter]').forEach((b) => (b.onclick = enterApp));
+  $('brand-home').onclick = goHome;
+  if (location.hash === '#app') enterApp();
+
+  // Landing smooth scroll
+  document.querySelectorAll('[data-scroll]').forEach((b) => {
+    b.onclick = () => {
+      const el = $(b.dataset.scroll);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+  });
+
+  // Drawer
+  const drawer = $('drawer');
+  const scrim = $('scrim');
+  $('hamburger').onclick = () => {
+    drawer.classList.add('open');
+    scrim.classList.add('show');
+  };
+  $('drawer-close').onclick = () => {
+    drawer.classList.remove('open');
+    scrim.classList.remove('show');
+  };
+  scrim.onclick = () => {
+    drawer.classList.remove('open');
+    scrim.classList.remove('show');
+  };
+
+  // Nav Items
+  document.querySelectorAll('.nav-item').forEach((btn) => {
+    btn.onclick = () => {
+      document.querySelectorAll('.nav-item').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      const target = btn.dataset.screen;
+      document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
+      $('screen-' + target).classList.add('active');
+      drawer.classList.remove('open');
+      scrim.classList.remove('show');
+      if (target === 'suppliers') showSuppliers();
+    };
+  });
+
+  // Overview restock button
+  $('ov-all').onclick = () => goScreen('restock');
+
+  // Segmented controls
+  document.querySelectorAll('.seg[data-seg] button').forEach((b) => {
+    b.onclick = async () => {
+      b.parentElement.querySelectorAll('button').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+      if (b.dataset.range) {
+        fcRange = b.dataset.range;
+        renderForecastAxis();
+      }
+      if (b.dataset.days) {
+        histDays = Number(b.dataset.days);
+        await syncSales();
+      }
+      if (b.dataset.f) {
+        invFilter = b.dataset.f;
+        renderInventory();
+      }
+    };
+  });
+
+  // Inline forms
+  $('hist-new').onclick = () => {
+    const f = $('hist-form');
+    const open = f.style.display === 'none';
+    f.style.display = open ? 'flex' : 'none';
+    if (open) {
+      if (!$('hist-date').value) $('hist-date').value = new Date().toISOString().slice(0, 10);
+      $('hist-name').focus();
+    }
+  };
+
+  $('hist-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const date = $('hist-date').value;
+    const item = $('hist-name').value.trim();
+    const qty = $('hist-qty').value;
+    const rev = $('hist-rev-in').value;
+    try {
+      await API.recordSale({ date, item, qty, rev });
+      toast(`Recorded sale: ${item} (${qty})`);
+      $('hist-form').reset();
+      $('hist-date').value = new Date().toISOString().slice(0, 10);
+      await Promise.all([syncSales(), syncInventory(), renderOverview()]);
+    } catch (err) {
+      toast('Error recording sale: ' + err.message);
+    }
+  };
+
+  // Input Data Screen Forms
+  const inpSaleForm = $('inp-sale-form');
+  if (inpSaleForm) {
+    if (!$('inp-sale-date').value) $('inp-sale-date').value = new Date().toISOString().slice(0, 10);
+    inpSaleForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const date = $('inp-sale-date').value;
+      const item = $('inp-sale-item').value.trim();
+      const qty = $('inp-sale-qty').value;
+      const rev = $('inp-sale-rev').value;
+      try {
+        await API.recordSale({ date, item, qty, rev });
+        toast(`Recorded sale: ${item} (${qty})`);
+        inpSaleForm.reset();
+        $('inp-sale-date').value = new Date().toISOString().slice(0, 10);
+        await Promise.all([syncSales(), syncInventory(), renderOverview()]);
+      } catch (err) {
+        toast('Error recording sale: ' + err.message);
+      }
+    };
+  }
+
+  const inpInvForm = $('inp-inv-form');
+  if (inpInvForm) {
+    inpInvForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const sku = $('inp-inv-sku').value.trim();
+      const name = $('inp-inv-name').value.trim();
+      const qty = Number($('inp-inv-qty').value);
+      const unit = $('inp-inv-unit').value.trim();
+      const reorder = Number($('inp-inv-reorder').value);
+      try {
+        await API.addInventoryItem({ sku, name, qty, unit, reorder });
+        toast('Item added to inventory');
+        inpInvForm.reset();
+        await Promise.all([syncInventory(), renderOverview()]);
+      } catch (err) {
+        toast('Error adding item: ' + err.message);
+      }
+    };
+  }
+
+  // Inventory search & quick new item
+  $('inv-search').oninput = (e) => {
+    invQuery = e.target.value;
+    renderInventory();
+  };
+
+  $('inv-new').onclick = () => {
+    const f = $('inv-form');
+    const open = f.style.display === 'none';
+    f.style.display = open ? 'flex' : 'none';
+    if (open) $('inv-sku').focus();
+  };
+
+  $('inv-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const sku = $('inv-sku').value.trim();
+    const name = $('inv-name').value.trim();
+    const qty = Number($('inv-qty').value);
+    const unit = $('inv-unit').value.trim();
+    const reorder = Number($('inv-reorder').value);
+    try {
+      await API.addInventoryItem({ sku, name, qty, unit, reorder });
+      toast('Item added');
+      $('inv-form').reset();
+      $('inv-form').style.display = 'none';
+      await Promise.all([syncInventory(), renderOverview()]);
+    } catch (err) {
+      toast('Error adding item: ' + err.message);
+    }
+  };
+
+  // Restock form
+  $('restock-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const sku = $('restock-sku').value;
+    const qty = parseInt($('restock-qty').value, 10) || 0;
+    if (!sku || qty <= 0) return;
+    try {
+      await API.restockItem(sku, qty);
+      toast(`Added ${qty} to ${sku}`);
+      $('restock-form').reset();
+      await Promise.all([syncInventory(), renderOverview()]);
+    } catch (err) {
+      toast('Error restocking: ' + err.message);
+    }
+  };
+
+  // Chat form
+  $('chat-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const input = $('chat-in');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const thread = $('chat-thread');
+    const userMsg = document.createElement('div');
+    userMsg.className = 'msg user';
+    userMsg.textContent = text;
+    thread.appendChild(userMsg);
+    input.value = '';
+    thread.scrollTop = thread.scrollHeight;
+
+    try {
+      const res = await API.sendChat(text);
+      const botMsg = document.createElement('div');
+      botMsg.className = 'msg bot';
+      botMsg.textContent = res.reply;
+      thread.appendChild(botMsg);
+      thread.scrollTop = thread.scrollHeight;
+    } catch (err) {
+      const errMsg = document.createElement('div');
+      errMsg.className = 'msg bot';
+      errMsg.textContent = "Sorry, I couldn't process that right now.";
+      thread.appendChild(errMsg);
+    }
+  };
+
+  // Profile save
+  $('set-save').onclick = async () => {
+    const updates = {
+      name: $('set-name').value.trim(),
+      business: $('set-biz').value.trim(),
+      role: $('set-role').value,
+      locale: $('set-lang').value,
+      currency: $('set-curr').value
+    };
+    try {
+      await API.updateProfile(updates);
+      profile = { ...profile, ...updates };
+      window.currentProfile = profile;
+      applyProfile();
+      renderHistory();
+      toast('Settings saved');
+    } catch (err) {
+      toast('Error saving settings: ' + err.message);
+    }
+  };
+
+  $('lang-top').onchange = (e) => {
+    $('set-lang').value = e.target.value;
+  };
+
+  $('curr-top').onchange = async (e) => {
+    $('set-curr').value = e.target.value;
+    profile.currency = e.target.value;
+    window.currentProfile = profile;
+    renderHistory();
+  };
+
+  // Initialize data-ico SVGs
+  document.querySelectorAll('[data-ico]').forEach((el) => {
+    el.innerHTML = ico(el.dataset.ico);
+  });
+
+  // Initial Sync
+  syncAll();
+});

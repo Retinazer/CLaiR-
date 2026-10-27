@@ -1,0 +1,136 @@
+const store = require('../data/store');
+
+function getItemStatus(item) {
+  if (item.qty <= 0 || item.qty < item.reorder / 2) return 'critical';
+  if (item.qty < item.reorder) return 'low';
+  return 'good';
+}
+
+function getStatusCounts(inventory) {
+  const counts = { critical: 0, low: 0, good: 0, total: inventory.length };
+  inventory.forEach((item) => {
+    counts[getItemStatus(item)]++;
+  });
+  return counts;
+}
+
+function getOverviewData() {
+  const inventory = store.getInventory();
+  const sales = store.getSales();
+  const profile = store.getProfile();
+
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
+  const counts = getStatusCounts(inventory);
+
+  const todayStr = now.toISOString().slice(0, 10);
+  const todaySales = sales.filter((s) => s.date === todayStr);
+  const todayDemand = todaySales.reduce((acc, s) => acc + (Number(s.qty) || 0), 0);
+
+  let reliability = '—';
+  let reliabilityClass = '';
+  let reliabilityText = 'Needs sales history';
+
+  if (sales.length >= 10) {
+    reliability = 'High';
+    reliabilityClass = 'green';
+    reliabilityText = `${sales.length} transactions recorded`;
+  } else if (sales.length >= 3) {
+    reliability = 'Moderate';
+    reliabilityClass = 'amber';
+    reliabilityText = `${sales.length} transactions recorded`;
+  } else if (sales.length > 0) {
+    reliability = 'Learning';
+    reliabilityClass = '';
+    reliabilityText = `${sales.length} transaction recorded`;
+  }
+
+  const urgentItems = inventory
+    .filter((it) => getItemStatus(it) !== 'good')
+    .sort((a, b) => (getItemStatus(a) === 'critical' ? 0 : 1) - (getItemStatus(b) === 'critical' ? 0 : 1))
+    .slice(0, 3)
+    .map((it) => ({
+      ...it,
+      status: getItemStatus(it),
+      suggestedQty: Math.max(0, it.reorder - it.qty)
+    }));
+
+  return {
+    greeting: greeting + (profile.name ? `, ${profile.name}` : ''),
+    date: todayStr,
+    riskCount: counts.critical + counts.low,
+    healthyCount: counts.good,
+    todayDemand,
+    todayTransactions: todaySales.length,
+    reliability,
+    reliabilityClass,
+    reliabilityText,
+    urgentCount: counts.critical + counts.low,
+    urgentItems
+  };
+}
+
+function getRestockRecommendations() {
+  const inventory = store.getInventory();
+  return inventory
+    .filter((it) => it.qty < it.reorder)
+    .map((it) => ({
+      ...it,
+      status: getItemStatus(it),
+      suggestedQty: it.reorder - it.qty
+    }));
+}
+
+function getSalesSummary(days = 30) {
+  const sales = store.getSales();
+  const end = new Date();
+  const start = new Date(end.getTime() - (days - 1) * 864e5);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  const inRange = sales.filter((s) => {
+    const d = new Date(s.date);
+    return !isNaN(d) && d >= start && d <= end;
+  });
+
+  const txCount = inRange.length;
+  const unitsSold = inRange.reduce((acc, s) => acc + (Number(s.qty) || 0), 0);
+  const revenue = inRange.reduce((acc, s) => acc + (Number(s.rev) || 0), 0);
+
+  const prodCounts = {};
+  inRange.forEach((s) => {
+    prodCounts[s.item] = (prodCounts[s.item] || 0) + (Number(s.qty) || 0);
+  });
+
+  let topProduct = '—';
+  let maxQty = 0;
+  for (const [p, q] of Object.entries(prodCounts)) {
+    if (q > maxQty) {
+      maxQty = q;
+      topProduct = p;
+    }
+  }
+
+  const sortedSales = [...inRange].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  return {
+    days,
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+    txCount,
+    unitsSold,
+    revenue,
+    topProduct,
+    transactions: sortedSales
+  };
+}
+
+module.exports = {
+  getItemStatus,
+  getStatusCounts,
+  getOverviewData,
+  getRestockRecommendations,
+  getSalesSummary
+};

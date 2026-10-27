@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CLaiR — Smart Stock Dashboard</title>
+  <link rel="icon"
+    href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Cg%20fill%3D%22none%22%20stroke-width%3D%225.5%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3Cpath%20d%3D%22M38.5%207.9%20A25%2025%200%200%201%2042.6%2054.7%22%20stroke%3D%22%23007AFF%22/%3E%0A%20%20%3Cpath%20d%3D%22M25.5%2056.1%20A25%2025%200%200%201%2021.4%209.3%22%20stroke%3D%22%2353C5F8%22/%3E%0A%3C/g%3E%0A%3Cpath%20d%3D%22M44.7%2059.2%20L40.5%2050.1%20L36.2%2057.6Z%22%20fill%3D%22%23007AFF%22%20stroke%3D%22%23007AFF%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22round%22/%3E%0A%3Cpath%20d%3D%22M19.3%204.8%20L23.5%2013.9%20L27.8%206.4Z%22%20fill%3D%22%2353C5F8%22%20stroke%3D%22%2353C5F8%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22round%22/%3E%0A%3Crect%20x%3D%2219%22%20y%3D%2222%22%20width%3D%2226%22%20height%3D%2221%22%20rx%3D%227.5%22%20fill%3D%22%230F172A%22/%3E%0A%3Cline%20x1%3D%2232%22%20y1%3D%2222%22%20x2%3D%2232%22%20y2%3D%2216.5%22%20stroke%3D%22%230F172A%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22/%3E%0A%3Ccircle%20cx%3D%2232%22%20cy%3D%2214.5%22%20r%3D%222.8%22%20fill%3D%22%2353C5F8%22/%3E%0A%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2231%22%20r%3D%222.6%22%20fill%3D%22%2353C5F8%22/%3E%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2231%22%20r%3D%222.6%22%20fill%3D%22%2353C5F8%22/%3E%0A%3Cpath%20d%3D%22M27.5%2036.2%20Q32%2040%2036.5%2036.2%22%20fill%3D%22none%22%20stroke%3D%22%2353C5F8%22%20stroke-width%3D%222.2%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  
+  <!-- Modular CSS -->
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/screens.css" />
+</head>
+
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="clair-mark" viewBox="0 0 64 64">
+      <g fill="none" stroke-width="5.5" stroke-linecap="round">
+        <path d="M38.5 7.9 A25 25 0 0 1 42.6 54.7" stroke="#007AFF" />
+        <path d="M25.5 56.1 A25 25 0 0 1 21.4 9.3" stroke="#53C5F8" />
+      </g>
+      <path d="M44.7 59.2 L40.5 50.1 L36.2 57.6Z" fill="#007AFF" stroke="#007AFF" stroke-width="2"
+        stroke-linejoin="round" />
+      <path d="M19.3 4.8 L23.5 13.9 L27.8 6.4Z" fill="#53C5F8" stroke="#53C5F8" stroke-width="2"
+        stroke-linejoin="round" />
+      <rect x="19" y="22" width="26" height="21" rx="7.5" fill="#0F172A" />
+      <line x1="32" y1="22" x2="32" y2="16.5" stroke="#0F172A" stroke-width="2.4" stroke-linecap="round" />
+      <circle cx="32" cy="14.5" r="2.8" fill="#53C5F8" />
+      <circle cx="26.5" cy="31" r="2.6" fill="#53C5F8" />
+      <circle cx="37.5" cy="31" r="2.6" fill="#53C5F8" />
+      <path d="M27.5 36.2 Q32 40 36.5 36.2" fill="none" stroke="#53C5F8" stroke-width="2.2" stroke-linecap="round" />
+    </symbol>
+  </svg>
+
+  <!-- LANDING PAGE -->
+  <div id="landing">
+    <div class="l-frame">
+      <div class="l-top" id="l-home">
+        <nav class="l-nav">
+          <div class="logo"><svg class="mark" viewBox="0 0 64 64" aria-label="CLaiR logo">
+              <use href="#clair-mark" />
+            </svg><span class="wm">CL<i>ai</i>R</span></div>
+          <div class="links">
+            <button data-scroll="l-home">Home</button>
+            <button data-scroll="l-about">About</button>
+            <button data-scroll="l-how">How it works</button>
+          </div>
+          <button class="l-black" data-enter>Get Started</button>
+        </nav>
+
+        <section class="l-hero">
+          <div>
+            <h1><span>Predict.</span><span class="y">Prevent.</span><span>Recover.</span></h1>
+            <p>Add your sales and stock as usual. CLaiR forecasts demand, warns you before items expire, and finds
+              nearby partners for any waste you cannot avoid.</p>
+            <button class="l-black" data-enter>Get Started</button>
+          </div>
+
+          <div class="l-art" aria-hidden="true">
+            <div class="l-halo a"></div>
+            <div class="l-halo b"></div>
+            <div class="l-card main">
+              <div class="cap">Demand forecast <span>Next 7 days</span></div>
+              <svg viewBox="0 0 300 150" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="lgA" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#007AFF" stop-opacity=".45" />
+                    <stop offset="1" stop-color="#007AFF" stop-opacity="0" />
+                  </linearGradient>
+                  <linearGradient id="lgH" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#53C5F8" stop-opacity=".45" />
+                    <stop offset="1" stop-color="#53C5F8" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <g stroke="#D0E4F7" stroke-dasharray="3 3">
+                  <line x1="0" y1="35" x2="300" y2="35" />
+                  <line x1="0" y1="80" x2="300" y2="80" />
+                  <line x1="0" y1="125" x2="300" y2="125" />
+                </g>
+                <path d="M0 110 L40 98 L80 90 L120 72 L160 64 L160 150 L0 150Z" fill="url(#lgH)" />
+                <path d="M0 110 L40 98 L80 90 L120 72 L160 64" stroke="#53C5F8" stroke-width="3" fill="none"
+                  stroke-linecap="round" />
+                <path d="M160 64 L205 48 L250 38 L295 52 L295 150 L160 150Z" fill="url(#lgA)" />
+                <path d="M160 64 L205 48 L250 38 L295 52" stroke="#007AFF" stroke-width="3" stroke-dasharray="7 5"
+                  fill="none" stroke-linecap="round" />
+                <circle cx="205" cy="48" r="4.5" fill="#007AFF" />
+                <circle cx="250" cy="38" r="4.5" fill="#007AFF" />
+                <circle cx="295" cy="52" r="4.5" fill="#007AFF" />
+              </svg>
+            </div>
+            <div class="l-badge b1"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 17l5-6 4 3 8-9" />
+                <path d="M15 5h5v5" />
+              </svg></div>
+            <div class="l-card s c1">
+              <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+                  <path d="M9 12l2 2 4-4" />
+                </svg></div>
+              <div><b>Prevent</b><small>Expiry watch</small></div>
+            </div>
+            <div class="l-card s c2">
+              <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                  <path d="M3 8v8l9 5 9-5V8" />
+                </svg></div>
+              <div><b>Restock signal</b><small>Order on time</small></div>
+            </div>
+            <div class="l-card s c3">
+              <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 11a8 8 0 0 0-14-4L4 9" />
+                  <path d="M4 4v5h5" />
+                  <path d="M4 13a8 8 0 0 0 14 4l2-2" />
+                  <path d="M20 20v-5h-5" />
+                </svg></div>
+              <div><b>Recover</b><small>Nearby partner</small></div>
+            </div>
+          </div>
+        </section>
+        <svg class="l-wave" viewBox="0 0 1200 90" preserveAspectRatio="none">
+          <path d="M0 40 C 260 80 520 60 760 38 C 960 20 1100 28 1200 40 L1200 90 L0 90Z" fill="#fff" />
+        </svg>
+      </div>
+
+      <section class="l-sec" id="l-how">
+        <h2>How does it work?</h2>
+        <p class="lead">Start with a few basics and let CLaiR learn your business over time.</p>
+        <div class="l-grid">
+          <div class="l-tile">
+            <div class="n">1</div>
+            <h3>Set up</h3>
+            <p>Create an account and answer a few questions about your products.</p>
+          </div>
+          <div class="l-tile">
+            <div class="n">2</div>
+            <h3>Add your records</h3>
+            <p>Enter daily sales, expiry dates and supplier deliveries.</p>
+          </div>
+          <div class="l-tile">
+            <div class="n">3</div>
+            <h3>Get recommendations</h3>
+            <p>See what to restock, how much, and when.</p>
+          </div>
+          <div class="l-tile">
+            <div class="n">4</div>
+            <h3>Cut waste</h3>
+            <p>Follow expiry warnings, and find a nearby partner for leftovers.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="l-sec alt" id="l-about">
+        <h2>Built for small businesses</h2>
+        <p class="lead">Big companies use expensive planning systems. Small food and beverage shops are left guessing,
+          so they run out or throw expired stock away. CLaiR is a simple assistant that fixes that.</p>
+        <div class="l-grid">
+          <div class="l-tile">
+            <div class="n">P</div>
+            <h3>Predict</h3>
+            <p>Forecasts demand from sales, holidays and seasons. Starts with Exponential Smoothing and moves to ARIMA
+              as your history grows.</p>
+          </div>
+          <div class="l-tile">
+            <div class="n">P</div>
+            <h3>Prevent</h3>
+            <p>Watches expiry dates and stock levels to avoid both shortages and overstock.</p>
+          </div>
+          <div class="l-tile">
+            <div class="n">R</div>
+            <h3>Recover</h3>
+            <p>Points unavoidable waste to nearby recycling or waste-processing partners.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="l-cta-band">
+        <h2>Ready to know what's next?</h2>
+        <p>Open the dashboard and add your first item.</p>
+        <button class="l-black" data-enter>Get Started</button>
+      </div>
+      <div class="l-foot">© CLaiR · Predict. Prevent. Recover.</div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <button class="hamburger" id="hamburger" aria-label="Open menu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round">
+        <line x1="4" y1="7" x2="20" y2="7" />
+        <line x1="4" y1="12" x2="20" y2="12" />
+        <line x1="4" y1="17" x2="20" y2="17" />
+      </svg>
+    </button>
+    <div class="brand" id="brand-home" style="cursor:pointer;" title="Back to home">
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-label="CLaiR logo">
+        <use href="#clair-mark" />
+      </svg>
+      <div>
+        <div><span class="wm">CL<i>ai</i>R</span></div><small>KNOW WHAT'S NEXT.</small>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <select id="lang-top" aria-label="Language">
+      <option>English</option>
+      <option>Bahasa Indonesia</option>
+      <option>Bahasa Melayu</option>
+      <option>Thai</option>
+      <option>Filipino</option>
+      <option>Tiếng Việt</option>
+    </select>
+    <select id="curr-top" aria-label="Currency">
+      <option>USD</option>
+      <option>SGD</option>
+      <option>IDR</option>
+      <option>MYR</option>
+      <option>THB</option>
+      <option>VND</option>
+    </select>
+    <div class="profile-pill">
+      <div class="avatar" id="top-avatar">?</div><span id="top-name">Guest</span>
+    </div>
+  </header>
+
+  <aside class="drawer" id="drawer">
+    <div class="head">
+      <h2>Menu</h2>
+      <button class="hamburger" id="drawer-close" aria-label="Close menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round">
+          <line x1="6" y1="6" x2="18" y2="18" />
+          <line x1="6" y1="18" x2="18" y2="6" />
+        </svg>
+      </button>
+    </div>
+    <nav>
+      <button class="nav-item active" data-screen="forecast"><span class="ico"><i class="fa-solid fa-house"></i></span> Overview</button>
+      <button class="nav-item" data-screen="history"><span class="ico"><i class="fa-solid fa-chart-column"></i></span> Sales History</button>
+      <button class="nav-item" data-screen="inventory"><span class="ico"><i class="fa-solid fa-boxes-stacked"></i></span> Inventory</button>
+      <button class="nav-item" data-screen="restock"><span class="ico"><i class="fa-solid fa-arrows-rotate"></i></span> Restock Signals</button>
+      <button class="nav-item" data-screen="input-data"><span class="ico"><i class="fa-solid fa-pen-to-square"></i></span> Input Data</button>
+      <button class="nav-item" data-screen="chat"><span class="ico"><i class="fa-solid fa-comments"></i></span> Chat with CLaiR</button>
+      <button class="nav-item" data-screen="suppliers"><span class="ico"><i class="fa-solid fa-location-dot"></i></span> Suppliers</button>
+      <button class="nav-item" data-screen="settings"><span class="ico"><i class="fa-solid fa-gear"></i></span> Settings &amp; Profile</button>
+    </nav>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main>
+    <!-- FORECAST -->
+    <section class="screen active" id="screen-forecast">
+      <div class="page-head">
+        <div>
+          <h1 id="ov-greet">Good morning</h1>
+          <p>Here's what needs your attention today.</p>
+        </div>
+        <div class="date-pill" id="ov-date"></div>
+      </div>
+      <div class="stat-grid">
+        <div class="sc"><span class="chip red" data-ico="alert-circle"></span>
+          <div class="lbl">At risk</div>
+          <div class="val red" id="ov-risk">0</div>
+          <div class="sub">items below reorder point</div>
+        </div>
+        <div class="sc"><span class="chip green" data-ico="check-circle"></span>
+          <div class="lbl">Healthy</div>
+          <div class="val green" id="ov-good">0</div>
+          <div class="sub">items in stock</div>
+        </div>
+        <div class="sc"><span class="chip " data-ico="flame"></span>
+          <div class="lbl">Today's demand</div>
+          <div class="val " id="ov-demand">—</div>
+          <div class="sub">No sales data yet</div>
+        </div>
+        <div class="sc"><span class="chip " data-ico="target"></span>
+          <div class="lbl">Forecast reliability</div>
+          <div class="val " id="ov-rel">—</div>
+          <div class="sub">Needs sales history</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="ptitle"><span class="chip " data-ico="bell"></span>
+            <h2>Attention required</h2>
+          </div><span class="muted" id="ov-count"></span>
+        </div>
+        <div id="ov-attn"></div>
+        <div class="panel-foot"><a id="ov-all">View all recommendations →</a></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="ptitle"><span class="chip " data-ico="chart-line"></span>
+            <h2>Demand forecast</h2>
+          </div>
+          <div class="seg" data-seg><button class="on" data-range="1d">1d</button><button
+              data-range="1w">1w</button><button data-range="1m">1m</button></div>
+        </div>
+        <div class="legend-row">
+          <div class="lg"><span><i style="border-color:#007AFF"></i>Actual</span><span><i
+                style="border-color:#53C5F8;border-top-style:dashed"></i>Predicted</span></div><b
+            style="color:#0F172A">No forecast yet</b>
+        </div>
+        <div class="chart-frame">
+          <div class="chart" id="forecast-chart"><svg id="fc-svg" viewBox="0 0 700 270" role="img"
+              aria-label="Empty demand forecast chart"></svg></div>
+        </div>
+      </div>
+      </div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="screen" id="screen-history">
+      <div class="page-head">
+        <div>
+          <h1>Sales History</h1>
+          <p id="hist-sub">Past 30 days</p>
+        </div>
+        <div class="date-pill" id="hist-range"></div>
+      </div>
+      <div class="stat-grid">
+        <div class="sc"><span class="chip " data-ico="receipt"></span>
+          <div class="lbl">Transactions</div>
+          <div class="val " id="hs-tx">0</div>
+          <div class="sub">no sales recorded</div>
+        </div>
+        <div class="sc"><span class="chip " data-ico="boxes"></span>
+          <div class="lbl">Units sold</div>
+          <div class="val " id="hs-units">0</div>
+          <div class="sub">no sales recorded</div>
+        </div>
+        <div class="sc"><span class="chip green" data-ico="coins"></span>
+          <div class="lbl">Revenue</div>
+          <div class="val " id="hs-rev">—</div>
+          <div class="sub">no sales recorded</div>
+        </div>
+        <div class="sc"><span class="chip " data-ico="flame"></span>
+          <div class="lbl">Top product</div>
+          <div class="val " id="hs-top">—</div>
+          <div class="sub">no sales recorded</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="ptitle"><span class="chip " data-ico="list"></span>
+            <h2>Recent transactions</h2>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="seg" data-seg><button data-days="7">7d</button><button data-days="30"
+                class="on">30d</button><button data-days="90">90d</button></div>
+            <button class="btn-main" id="hist-new">+ Input Data</button>
+          </div>
+        </div>
+        <form id="hist-form" class="inline-form" style="display:none; margin: 0 0 18px;">
+          <input id="hist-date" type="date" required style="width:145px;" />
+          <input id="hist-name" placeholder="Item name / Recipe" list="hist-item-list" required
+            style="flex:1; min-width:140px;" />
+          <datalist id="hist-item-list"></datalist>
+          <input id="hist-qty" type="number" min="1" placeholder="Qty sold" required style="width:110px;" />
+          <input id="hist-rev-in" type="number" min="0" placeholder="Revenue" required style="width:130px;" />
+          <button class="btn btn-primary" type="submit">Record sale</button>
+        </form>
+        <div class="tbl-wrap" id="history-card"></div>
+      </div>
+    </section>
+
+    <!-- INVENTORY -->
+    <section class="screen" id="screen-inventory">
+      <div class="page-head">
+        <div>
+          <h1>Inventory</h1>
+          <p id="inv-sub">0 items tracked · 0 below reorder point</p>
+        </div>
+        <div class="date-pill" id="inv-date"></div>
+      </div>
+      <div class="stat-grid">
+        <div class="sc"><span class="chip red" data-ico="alert-circle"></span>
+          <div class="lbl">Critical</div>
+          <div class="val red" id="inv-crit">0</div>
+          <div class="sub">needs immediate restock</div>
+        </div>
+        <div class="sc"><span class="chip amber" data-ico="alert-triangle"></span>
+          <div class="lbl">Low</div>
+          <div class="val " id="inv-low">0</div>
+          <div class="sub">approaching reorder point</div>
+        </div>
+        <div class="sc"><span class="chip green" data-ico="check-circle"></span>
+          <div class="lbl">Healthy</div>
+          <div class="val green" id="inv-good">0</div>
+          <div class="sub">stock above safety level</div>
+        </div>
+        <div class="sc"><span class="chip " data-ico="boxes"></span>
+          <div class="lbl">Total items</div>
+          <div class="val " id="inv-total">0</div>
+          <div class="sub">items tracked</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="ptitle"><span class="chip " data-ico="boxes"></span>
+            <h2>Current stock</h2>
+          </div><button class="btn-main" id="inv-new">+ New item</button>
+        </div>
+        <form id="inv-form" class="inline-form" style="display:none; margin: 0 0 18px;">
+          <input id="inv-sku" placeholder="SKU" required style="width:100px;" />
+          <input id="inv-name" placeholder="Item name" required style="flex:1; min-width:140px;" />
+          <input id="inv-qty" type="number" min="0" placeholder="On hand" required style="width:115px;" />
+          <input id="inv-unit" placeholder="Unit (g, ml, pcs)" required style="width:160px;" />
+          <input id="inv-reorder" type="number" min="0" placeholder="Reorder point" required style="width:140px;" />
+          <button class="btn btn-primary" type="submit">Add item</button>
+        </form>
+        <div class="toolbar">
+          <div class="seg" id="inv-tabs" data-seg>
+            <button data-f="all" class="on">All<span class="cnt">0</span></button>
+            <button data-f="critical">Critical<span class="cnt">0</span></button>
+            <button data-f="low">Low<span class="cnt">0</span></button>
+            <button data-f="good">Healthy<span class="cnt">0</span></button>
+          </div>
+          <input id="inv-search" placeholder="Search items, SKUs..." autocomplete="off" />
+        </div>
+        <div class="tbl-wrap" id="inv-wrap"></div>
+      </div>
+    </section>
+
+    <!-- RESTOCK -->
+    <section class="screen" id="screen-restock">
+      <div class="screen-head">
+        <h1>Restock Signals</h1>
+        <p>Items below reorder point</p>
+      </div>
+      <div class="card">
+        <div id="restock-wrap"></div>
+        <form id="restock-form" class="inline-form">
+          <select id="restock-sku"></select>
+          <input id="restock-qty" type="number" min="1" placeholder="Qty" style="width:90px;" />
+          <button class="btn btn-primary" type="submit">+ Add stock</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- INPUT DATA -->
+    <section class="screen" id="screen-input-data">
+      <div class="page-head">
+        <div>
+          <h1>Input Data</h1>
+          <p>Record daily sales transactions or add new inventory items</p>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+        <!-- Record Sale Card -->
+        <div class="card">
+          <div class="panel-head" style="margin-bottom:14px;">
+            <div class="ptitle"><span class="chip" data-ico="receipt"></span>
+              <h2>Record Sale Transaction</h2>
+            </div>
+          </div>
+          <form id="inp-sale-form">
+            <div class="field"><label>Date</label><input id="inp-sale-date" type="date" required /></div>
+            <div class="field"><label>Item / Recipe</label><input id="inp-sale-item" placeholder="e.g. Arabian Coffee"
+                list="inp-sale-list" required /><datalist id="inp-sale-list"></datalist></div>
+            <div class="field"><label>Quantity Sold</label><input id="inp-sale-qty" type="number" min="1"
+                placeholder="e.g. 5" required /></div>
+            <div class="field"><label>Total Revenue</label><input id="inp-sale-rev" type="number" min="0"
+                placeholder="e.g. 75000" required /></div>
+            <button class="btn btn-primary" type="submit" style="width:100%;margin-top:6px;">Record Sale</button>
+          </form>
+        </div>
+
+        <!-- Add Inventory Item Card -->
+        <div class="card">
+          <div class="panel-head" style="margin-bottom:14px;">
+            <div class="ptitle"><span class="chip" data-ico="boxes"></span>
+              <h2>Add Inventory Stock</h2>
+            </div>
+          </div>
+          <form id="inp-inv-form">
+            <div class="field"><label>SKU</label><input id="inp-inv-sku" placeholder="e.g. CF-001" required /></div>
+            <div class="field"><label>Item Name</label><input id="inp-inv-name" placeholder="e.g. Arabica Beans"
+                required /></div>
+            <div class="field"><label>Quantity on Hand</label><input id="inp-inv-qty" type="number" min="0"
+                placeholder="e.g. 50" required /></div>
+            <div class="field"><label>Unit</label><input id="inp-inv-unit" placeholder="e.g. kg, pcs, cups" required />
+            </div>
+            <div class="field"><label>Reorder Point</label><input id="inp-inv-reorder" type="number" min="0"
+                placeholder="e.g. 15" required /></div>
+            <button class="btn btn-primary" type="submit" style="width:100%;margin-top:6px;">Add to Inventory</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHAT -->
+    <section class="screen" id="screen-chat">
+      <div class="screen-head">
+        <h1>Chat with CLaiR</h1>
+        <p>Ask about your stock or suppliers</p>
+      </div>
+      <div class="card chat-wrap">
+        <div id="chat-thread">
+          <div class="msg bot">Hi! Ask me about your stock, restock needs, or suppliers.</div>
+        </div>
+        <form class="chat-input" id="chat-form">
+          <input id="chat-in" placeholder="Type a message..." autocomplete="off" />
+          <button class="btn btn-primary" type="submit">Send</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- SUPPLIERS -->
+    <section class="screen" id="screen-suppliers">
+      <div class="screen-head">
+        <h1 id="sp-title">Suppliers</h1>
+        <p>Pin your suppliers on the map</p>
+      </div>
+      <div class="supplier-layout">
+        <div class="card">
+          <div class="map" id="supplier-map"></div>
+          <p class="map-hint">Click anywhere on the map to add a supplier at that spot.</p>
+        </div>
+        <div class="card supplier-cards" id="supplier-cards"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="screen" id="screen-settings">
+      <div class="screen-head">
+        <h1>Settings &amp; Profile</h1>
+        <p>Profile, language, currency</p>
+      </div>
+      <div class="card" style="max-width:560px;">
+        <div class="field"><label>Name</label><input id="set-name" placeholder="Your name" /></div>
+        <div class="field"><label>Business</label><input id="set-biz" placeholder="Your business name" /></div>
+        <div class="field"><label>Role</label>
+          <select id="set-role">
+            <option>Owner</option>
+            <option>Manager</option>
+            <option>Staff</option>
+            <option>Solo founder</option>
+          </select>
+        </div>
+        <div class="field"><label>Language</label>
+          <select id="set-lang">
+            <option>English</option>
+            <option>Bahasa Indonesia</option>
+            <option>Bahasa Melayu</option>
+            <option>Thai</option>
+            <option>Filipino</option>
+            <option>Tiếng Việt</option>
+          </select>
+        </div>
+        <div class="field"><label>Currency</label>
+          <select id="set-curr">
+            <option>USD</option>
+            <option>SGD</option>
+            <option>IDR</option>
+            <option>MYR</option>
+            <option>THB</option>
+            <option>VND</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="set-save">Save</button>
+      </div>
+    </section>
+  </main>
+
+
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Modular Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+
+</html>
