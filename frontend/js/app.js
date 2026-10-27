@@ -8,7 +8,7 @@ let suppliers = [];
 let salesData = { transactions: [], txCount: 0, unitsSold: 0, revenue: 0, topProduct: '—' };
 let profile = { name: '', business: '', role: 'Owner', locale: 'English', currency: 'IDR' };
 let userPos = null; // { lat, lng }
-let fcRange = '1d';
+let fcRange = '1w';
 let fcGranularity = 'daily';
 let invFilter = 'all';
 let invQuery = '';
@@ -223,8 +223,11 @@ function renderSvgForecast(fc) {
   const labelInterval = Math.max(1, Math.ceil(allPoints.length / 8));
   allPoints.forEach((p, i) => {
     if (i % labelInterval === 0 || i === allPoints.length - 1) {
-      const d = new Date(p.date);
-      const labelText = isNaN(d) ? p.date : fmtMD(d);
+      const d = new Date(p.date.includes('T') ? p.date : `${p.date}T12:00:00Z`);
+      const isHourly = fc && fc.granularity === 'hourly';
+      const labelText = isHourly
+        ? (!isNaN(d) ? `${String(d.getHours()).padStart(2, '0')}:00` : p.date)
+        : (!isNaN(d) ? fmtMD(d) : p.date);
       g += `<line x1="${p.x.toFixed(1)}" y1="${B}" x2="${p.x.toFixed(1)}" y2="${B + 5}" stroke="#007AFF"/>` +
         `<text x="${p.x.toFixed(1)}" y="${B + 18}" text-anchor="middle" font-size="11" font-weight="500" fill="#64748B">${labelText}</text>`;
     }

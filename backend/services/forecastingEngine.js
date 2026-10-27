@@ -346,7 +346,8 @@ function runSARIMAX(series, dates, horizon = 7, granularity = 'daily') {
   const sigmaInnov = Math.sqrt(sse / Math.max(1, m));
 
   // 6. Multi-step forecasting into horizon
-  const lastDate = new Date(dates[dates.length - 1]);
+  const lastKeyStr = dates[dates.length - 1];
+  const lastDate = new Date(lastKeyStr.includes('T') ? lastKeyStr : `${lastKeyStr.slice(0, 10)}T12:00:00Z`);
   const stepMs = granularity === 'hourly' ? 3600 * 1000 : 864e5;
   const futureX = [];
 
@@ -439,20 +440,35 @@ function generateForecast(salesList = [], options = 7) {
 
   if (sortedKeys.length > 0) {
     if (granularity === 'hourly') {
-      // Build continuous hourly timeline between first and last timestamp
-      const start = new Date(sortedKeys[0].includes('T') ? sortedKeys[0] : `${sortedKeys[0]}T00:00:00`);
-      const end = new Date(sortedKeys[sortedKeys.length - 1].includes('T') ? sortedKeys[sortedKeys.length - 1] : `${sortedKeys[sortedKeys.length - 1]}T23:00:00`);
+      // Build continuous hourly timeline for the last 48 hours
+      const lastKey = sortedKeys[sortedKeys.length - 1];
+      const end = new Date(lastKey.includes('T') ? lastKey : `${lastKey.slice(0, 10)}T23:00:00Z`);
+      const start = new Date(end.getTime() - 47 * 3600 * 1000);
       const curr = new Date(start);
       while (curr <= end) {
         const k = curr.toISOString().slice(0, 13) + ':00';
         timelineDates.push(k);
-        timelineValues.push(buckets[k] || 0);
+        const dStr = curr.toISOString().slice(0, 10);
+        const hr = curr.getUTCHours();
+        let val = buckets[k];
+        if (val === undefined && buckets[dStr]) {
+          // If transaction only has date without hour, synthesize diurnal curve (08:00 to 21:00) with peaks
+          if (hr >= 8 && hr <= 21) {
+            const isPeak = (hr >= 11 && hr <= 14) || (hr >= 18 && hr <= 20);
+            const weight = isPeak ? 1.8 : 1.0;
+            const totalWeight = 6 * 1.8 + 8 * 1.0;
+            val = Number(((buckets[dStr] * weight) / totalWeight).toFixed(1));
+          } else {
+            val = 0;
+          }
+        }
+        timelineValues.push(val || 0);
         curr.setHours(curr.getHours() + 1);
       }
     } else {
-      // Build continuous daily timeline
-      const start = new Date(sortedKeys[0].slice(0, 10));
-      const end = new Date(sortedKeys[sortedKeys.length - 1].slice(0, 10));
+      // Build continuous daily timeline using UTC midday to avoid timezone day shifts
+      const start = new Date(sortedKeys[0].slice(0, 10) + 'T12:00:00Z');
+      const end = new Date(sortedKeys[sortedKeys.length - 1].slice(0, 10) + 'T12:00:00Z');
       const curr = new Date(start);
       while (curr <= end) {
         const dStr = curr.toISOString().slice(0, 10);
@@ -538,7 +554,7 @@ function generateForecast(salesList = [], options = 7) {
 
   // 6. Build Future Forecast Dates
   const lastKnownKey = timelineDates.length > 0 ? timelineDates[timelineDates.length - 1] : new Date().toISOString();
-  const lastKnownDate = new Date(lastKnownKey.includes('T') ? lastKnownKey : `${lastKnownKey}T00:00:00`);
+  const lastKnownDate = new Date(lastKnownKey.includes('T') ? lastKnownKey : `${lastKnownKey.slice(0, 10)}T12:00:00Z`);
   const stepMs = granularity === 'hourly' ? 3600 * 1000 : 864e5;
   const forecastDates = [];
 
