@@ -90,7 +90,6 @@ function updateDatalists() {
     .map((it) => `<option value="${esc(it.name)}">${esc(it.sku)} (${it.qty} ${esc(it.unit)} on hand)</option>`)
     .join('');
   if ($('hist-item-list')) $('hist-item-list').innerHTML = opts;
-  if ($('inp-sale-list')) $('inp-sale-list').innerHTML = opts;
 }
 
 // ============================================================================
@@ -815,48 +814,6 @@ document.addEventListener('DOMContentLoaded', () => {
       toast('Error recording sale: ' + err.message);
     }
   };
-
-  // Input Data Screen Forms
-  const inpSaleForm = $('inp-sale-form');
-  if (inpSaleForm) {
-    if (!$('inp-sale-date').value) $('inp-sale-date').value = new Date().toISOString().slice(0, 10);
-    inpSaleForm.onsubmit = async (e) => {
-      e.preventDefault();
-      const date = $('inp-sale-date').value;
-      const item = $('inp-sale-item').value.trim();
-      const qty = $('inp-sale-qty').value;
-      const rev = $('inp-sale-rev').value;
-      try {
-        await API.recordSale({ date, item, qty, rev });
-        toast(`Recorded sale: ${item} (${qty})`);
-        inpSaleForm.reset();
-        $('inp-sale-date').value = new Date().toISOString().slice(0, 10);
-        await Promise.all([syncSales(), syncInventory(), renderOverview()]);
-      } catch (err) {
-        toast('Error recording sale: ' + err.message);
-      }
-    };
-  }
-
-  const inpInvForm = $('inp-inv-form');
-  if (inpInvForm) {
-    inpInvForm.onsubmit = async (e) => {
-      e.preventDefault();
-      const sku = $('inp-inv-sku').value.trim();
-      const name = $('inp-inv-name').value.trim();
-      const qty = Number($('inp-inv-qty').value);
-      const unit = $('inp-inv-unit').value.trim();
-      const reorder = Number($('inp-inv-reorder').value);
-      try {
-        await API.addInventoryItem({ sku, name, qty, unit, reorder });
-        toast('Item added to inventory');
-        inpInvForm.reset();
-        await Promise.all([syncInventory(), renderOverview()]);
-      } catch (err) {
-        toast('Error adding item: ' + err.message);
-      }
-    };
-  }
 
   // Inventory search & quick new item
   $('inv-search').oninput = (e) => {

@@ -246,7 +246,6 @@
       <button class="nav-item" data-screen="history"><span class="ico"><i class="fa-solid fa-chart-column"></i></span> Sales History</button>
       <button class="nav-item" data-screen="inventory"><span class="ico"><i class="fa-solid fa-boxes-stacked"></i></span> Inventory</button>
       <button class="nav-item" data-screen="restock"><span class="ico"><i class="fa-solid fa-arrows-rotate"></i></span> Restock Signals</button>
-      <button class="nav-item" data-screen="input-data"><span class="ico"><i class="fa-solid fa-pen-to-square"></i></span> Input Data</button>
       <button class="nav-item" data-screen="chat"><span class="ico"><i class="fa-solid fa-comments"></i></span> Chat with CLaiR</button>
       <button class="nav-item" data-screen="suppliers"><span class="ico"><i class="fa-solid fa-location-dot"></i></span> Suppliers</button>
       <button class="nav-item" data-screen="settings"><span class="ico"><i class="fa-solid fa-gear"></i></span> Settings &amp; Profile</button>
@@ -449,57 +448,6 @@
           <input id="restock-qty" type="number" min="1" placeholder="Qty" style="width:90px;" />
           <button class="btn btn-primary" type="submit">+ Add stock</button>
         </form>
-      </div>
-    </section>
-
-    <!-- INPUT DATA -->
-    <section class="screen" id="screen-input-data">
-      <div class="page-head">
-        <div>
-          <h1>Input Data</h1>
-          <p>Record daily sales transactions or add new inventory items</p>
-        </div>
-      </div>
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
-        <!-- Record Sale Card -->
-        <div class="card">
-          <div class="panel-head" style="margin-bottom:14px;">
-            <div class="ptitle"><span class="chip" data-ico="receipt"></span>
-              <h2>Record Sale Transaction</h2>
-            </div>
-          </div>
-          <form id="inp-sale-form">
-            <div class="field"><label>Date</label><input id="inp-sale-date" type="date" required /></div>
-            <div class="field"><label>Item / Recipe</label><input id="inp-sale-item" placeholder="e.g. Arabian Coffee"
-                list="inp-sale-list" required /><datalist id="inp-sale-list"></datalist></div>
-            <div class="field"><label>Quantity Sold</label><input id="inp-sale-qty" type="number" min="1"
-                placeholder="e.g. 5" required /></div>
-            <div class="field"><label>Total Revenue</label><input id="inp-sale-rev" type="number" min="0"
-                placeholder="e.g. 75000" required /></div>
-            <button class="btn btn-primary" type="submit" style="width:100%;margin-top:6px;">Record Sale</button>
-          </form>
-        </div>
-
-        <!-- Add Inventory Item Card -->
-        <div class="card">
-          <div class="panel-head" style="margin-bottom:14px;">
-            <div class="ptitle"><span class="chip" data-ico="boxes"></span>
-              <h2>Add Inventory Stock</h2>
-            </div>
-          </div>
-          <form id="inp-inv-form">
-            <div class="field"><label>SKU</label><input id="inp-inv-sku" placeholder="e.g. CF-001" required /></div>
-            <div class="field"><label>Item Name</label><input id="inp-inv-name" placeholder="e.g. Arabica Beans"
-                required /></div>
-            <div class="field"><label>Quantity on Hand</label><input id="inp-inv-qty" type="number" min="0"
-                placeholder="e.g. 50" required /></div>
-            <div class="field"><label>Unit</label><input id="inp-inv-unit" placeholder="e.g. kg, pcs, cups" required />
-            </div>
-            <div class="field"><label>Reorder Point</label><input id="inp-inv-reorder" type="number" min="0"
-                placeholder="e.g. 15" required /></div>
-            <button class="btn btn-primary" type="submit" style="width:100%;margin-top:6px;">Add to Inventory</button>
-          </form>
-        </div>
       </div>
     </section>
 
