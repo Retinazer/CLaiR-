@@ -18,6 +18,7 @@ app.use('/api/restock', require('./routes/restock'));
 app.use('/api/suppliers', require('./routes/suppliers'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/forecast', require('./routes/forecast'));
 
 // Health check
 app.get('/api/health', (req, res) => {

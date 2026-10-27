@@ -304,16 +304,22 @@
               data-range="1w">1w</button><button data-range="1m">1m</button></div>
         </div>
         <div class="legend-row">
-          <div class="lg"><span><i style="border-color:#007AFF"></i>Actual</span><span><i
-                style="border-color:#53C5F8;border-top-style:dashed"></i>Predicted</span></div><b
-            style="color:#0F172A">No forecast yet</b>
+          <div class="lg">
+            <span><i style="border-color:#007AFF"></i>Actual</span>
+            <span><i style="border-color:#53C5F8;border-top-style:dashed"></i>Predicted</span>
+            <span><i style="border-color:transparent;background:rgba(83,197,248,0.25)"></i>95% Interval</span>
+          </div>
+          <div class="model-badge-row">
+            <span class="model-badge" id="fc-model-badge">Awaiting Data</span>
+            <span class="threshold-pill" id="fc-threshold-pill">Evaluating threshold...</span>
+          </div>
         </div>
         <div class="chart-frame">
-          <div class="chart" id="forecast-chart"><svg id="fc-svg" viewBox="0 0 700 270" role="img"
-              aria-label="Empty demand forecast chart"></svg></div>
+          <div class="chart" id="forecast-chart">
+            <svg id="fc-svg" viewBox="0 0 700 270" role="img" aria-label="Demand forecast chart"></svg>
+          </div>
         </div>
-      </div>
-      </div>
+        <div class="forecast-insights" id="fc-insights"></div>
       </div>
     </section>
 

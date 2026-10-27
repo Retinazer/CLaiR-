@@ -1,5 +1,6 @@
 const store = require('../data/store');
 const { getRestockRecommendations } = require('./analyticsService');
+const { generateForecast } = require('./forecastingEngine');
 
 function generateClairReply(query) {
   const q = String(query || '').trim().toLowerCase();
@@ -29,15 +30,24 @@ function generateClairReply(query) {
       : 'No suppliers have been added yet. Click the map on the Suppliers screen to add one.';
   }
 
-  if (q.includes('forecast') || q.includes('predict') || q.includes('sales') || q.includes('demand')) {
+  if (q.includes('forecast') || q.includes('predict') || q.includes('sarimax') || q.includes('ets') || q.includes('sales') || q.includes('demand')) {
     if (!sales.length) {
       return 'There is no sales history yet, so I cannot forecast. Use Input Data to record sales first.';
     }
-    const totalUnits = sales.reduce((a, s) => a + (Number(s.qty) || 0), 0);
-    return `Based on ${sales.length} recorded transaction(s) (${totalUnits} total units sold), demand is tracking steadily. Keep logging sales for higher forecast accuracy.`;
+    const fc = generateForecast(sales, 7);
+    const sumPred = fc.forecast.predictions.reduce((a, b) => a + b, 0);
+    const avgPred = (sumPred / (fc.forecast.predictions.length || 1)).toFixed(1);
+
+    if (fc.activeModel === 'SARIMAX') {
+      return `Currently using SARIMAX (${fc.thresholds.currentPoints} days of rich data >= ${fc.thresholds.richThreshold}). Accounting for weekly seasonality (s=7) and weekend trends, projected next 7-day demand is ~${Math.round(sumPred)} units (avg ${avgPred}/day) with MAE ${fc.metrics.mae}.`;
+    }
+    if (fc.activeModel === 'ETS') {
+      return `Currently using ETS (Exponential Smoothing) due to sparse data (${fc.thresholds.currentPoints} days < ${fc.thresholds.richThreshold} threshold). Need ${fc.thresholds.pointsNeededForRich} more days to unlock SARIMAX. Projected 7-day demand is ~${Math.round(sumPred)} units (avg ${avgPred}/day).`;
+    }
+    return `Currently collecting sales data (${fc.thresholds.currentPoints} / ${fc.thresholds.sparseThreshold} days). Need ${Math.max(0, fc.thresholds.sparseThreshold - fc.thresholds.currentPoints)} more days of data to engage ETS smoothing.`;
   }
 
-  return "I can answer questions about your stock, restock needs, sales forecast, and suppliers.";
+  return "I can answer questions about your stock, restock needs, demand forecasts (ETS & SARIMAX), and suppliers.";
 }
 
 module.exports = {

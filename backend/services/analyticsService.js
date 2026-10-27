@@ -1,4 +1,5 @@
 const store = require('../data/store');
+const { generateForecast, SPARSE_THRESHOLD, RICH_THRESHOLD } = require('./forecastingEngine');
 
 function getItemStatus(item) {
   if (item.qty <= 0 || item.qty < item.reorder / 2) return 'critical';
@@ -29,22 +30,25 @@ function getOverviewData() {
   const todaySales = sales.filter((s) => s.date === todayStr);
   const todayDemand = todaySales.reduce((acc, s) => acc + (Number(s.qty) || 0), 0);
 
-  let reliability = '—';
-  let reliabilityClass = '';
-  let reliabilityText = 'Needs sales history';
+  // Run dynamic forecasting engine to evaluate active model and threshold
+  const forecastInfo = generateForecast(sales, 7);
 
-  if (sales.length >= 10) {
-    reliability = 'High';
+  let reliability = 'Awaiting Data';
+  let reliabilityClass = '';
+  let reliabilityText = `Need >= ${SPARSE_THRESHOLD} days for ETS`;
+
+  if (forecastInfo.activeModel === 'SARIMAX') {
+    reliability = 'SARIMAX';
     reliabilityClass = 'green';
-    reliabilityText = `${sales.length} transactions recorded`;
-  } else if (sales.length >= 3) {
-    reliability = 'Moderate';
-    reliabilityClass = 'amber';
-    reliabilityText = `${sales.length} transactions recorded`;
-  } else if (sales.length > 0) {
-    reliability = 'Learning';
+    reliabilityText = `${forecastInfo.thresholds.currentPoints} days · Rich Regime (>=${RICH_THRESHOLD})`;
+  } else if (forecastInfo.activeModel === 'ETS') {
+    reliability = 'ETS';
+    reliabilityClass = 'blue';
+    reliabilityText = `${forecastInfo.thresholds.currentPoints} days · Sparse (need ${forecastInfo.thresholds.pointsNeededForRich} more for SARIMAX)`;
+  } else if (forecastInfo.thresholds.currentPoints > 0) {
+    reliability = 'Collecting';
     reliabilityClass = '';
-    reliabilityText = `${sales.length} transaction recorded`;
+    reliabilityText = `${forecastInfo.thresholds.currentPoints} / ${SPARSE_THRESHOLD} days for ETS`;
   }
 
   const urgentItems = inventory
@@ -68,7 +72,8 @@ function getOverviewData() {
     reliabilityClass,
     reliabilityText,
     urgentCount: counts.critical + counts.low,
-    urgentItems
+    urgentItems,
+    forecast: forecastInfo
   };
 }
 

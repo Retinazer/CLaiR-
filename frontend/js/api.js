@@ -27,9 +27,13 @@ const API = {
     }
   },
 
-  // Overview
+  // Overview & Forecast
   getOverview() {
     return this.request('/api/overview');
+  },
+
+  getForecast(range = '1w') {
+    return this.request(`/api/forecast?range=${encodeURIComponent(range)}`);
   },
 
   // Inventory
@@ -218,6 +222,32 @@ const API = {
         reliabilityText: `${sales.length} transactions recorded`,
         urgentCount: counts.critical + counts.low,
         urgentItems: inv.filter(i => statusKey(i) !== 'good').slice(0, 3)
+      };
+    }
+
+    if (endpoint.startsWith('/api/forecast')) {
+      const distinctDays = [...new Set(sales.map((s) => s.date))].length;
+      const isRich = distinctDays >= 14;
+      const isSparse = distinctDays >= 3;
+      const model = isRich ? 'SARIMAX' : isSparse ? 'ETS' : 'NONE';
+      return {
+        activeModel: model,
+        regime: isRich ? 'rich' : isSparse ? 'sparse' : 'insufficient',
+        rationale: isRich
+          ? 'Rich Data Regime (>=14 days). SARIMAX active with weekly seasonality.'
+          : isSparse
+          ? 'Sparse Data Regime (<14 days). ETS active.'
+          : 'Insufficient data (<3 days).',
+        thresholds: {
+          sparseThreshold: 3,
+          richThreshold: 14,
+          currentPoints: distinctDays,
+          pointsNeededForRich: Math.max(0, 14 - distinctDays),
+          progressPercent: Math.min(100, Math.round((distinctDays / 14) * 100))
+        },
+        timeline: { dates: sales.map((s) => s.date), values: sales.map((s) => s.qty) },
+        forecast: { dates: [], predictions: [], lower: [], upper: [] },
+        metrics: { mae: 0, rmse: 0, modelDetails: model }
       };
     }
 

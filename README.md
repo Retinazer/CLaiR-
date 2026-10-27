@@ -20,10 +20,12 @@ CLaiR/
 │   │   ├── restock.js           # GET, POST /api/restock
 │   │   ├── suppliers.js         # GET, POST, DELETE /api/suppliers
 │   │   ├── profile.js           # GET, PUT /api/profile
-│   │   └── chat.js              # POST /api/chat
+│   │   ├── chat.js              # POST /api/chat
+│   │   └── forecast.js          # GET /api/forecast (SARIMAX & ETS with threshold switching)
 │   ├── services/
 │   │   ├── analyticsService.js  # Demand forecasting, status levels & restock math
-│   │   └── chatService.js       # CLaiR AI query parser and data-driven responses
+│   │   ├── chatService.js       # CLaiR AI query parser and data-driven responses
+│   │   └── forecastingEngine.js # Adaptive ETS & SARIMAX mathematical engine
 │   └── server.js                # Express app serving static frontend & REST API
 │
 ├── frontend/
@@ -90,4 +92,21 @@ Open your browser and navigate to:
 | `/api/suppliers/:id` | `DELETE` | Remove a supplier |
 | `/api/profile` | `GET`, `PUT` | Retrieve or update user business profile & currency |
 | `/api/chat` | `POST` | Ask CLaiR assistant questions about your live data |
+| `/api/forecast` | `GET` | Dynamic demand forecast with ETS & SARIMAX switcher (`?range=1d\|1w\|1m`) |
 | `/api/health` | `GET` | Server health check |
+
+---
+
+## Adaptive Forecasting Engine (ETS & SARIMAX)
+
+CLaiR features an automated statistical switcher that dynamically toggles algorithms based on the richness of historical observation data:
+
+1. **Cold Start (< 3 days)**:
+   - Data is insufficient for statistical estimation. Prompts the user to log transactions.
+2. **Sparse Data Regime (3 to 13 days) — ETS (Holt-Winters)**:
+   - Activates **Exponential Smoothing** with level ($\alpha$) and trend ($\beta$) updates.
+   - Prevents parameter instability and matrix singularity that occurs when attempting high-order ARMA estimation on short series.
+3. **Rich Data Regime (>= 14 days) — SARIMAX**:
+   - Activates **SARIMAX $(1,1,1) \times (1,1,0)_7$** with weekly cycle differencing ($s=7$) and weekend/day-of-week exogenous regressors.
+   - Generates point forecasts and shaded 95% confidence intervals displayed directly on the interactive SVG demand chart.
+

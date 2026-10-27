@@ -97,40 +97,211 @@ function updateDatalists() {
 // Overview & Forecast
 // ============================================================================
 
-function renderForecastAxis() {
-  const L = 52, R = 690, T = 16, B = 226, now = new Date();
-  let labels;
-  if (fcRange === '1d') {
-    labels = ['6am', '9am', '12pm', '3pm', '6pm', '9pm'];
-  } else if (fcRange === '1w') {
-    labels = Array.from({ length: 7 }, (_, i) => DOW[new Date(now.getTime() + i * 864e5).getDay()]);
-  } else {
-    labels = Array.from({ length: 6 }, (_, i) => fmtMD(new Date(now.getTime() - (29 - i * 5.8) * 864e5)));
+function renderSvgForecast(fc) {
+  const L = 52, R = 675, T = 22, B = 222;
+  const historyVals = (fc && fc.timeline && fc.timeline.values) || [];
+  const historyDates = (fc && fc.timeline && fc.timeline.dates) || [];
+  const predVals = (fc && fc.forecast && fc.forecast.predictions) || [];
+  const predDates = (fc && fc.forecast && fc.forecast.dates) || [];
+  const lowerVals = (fc && fc.forecast && fc.forecast.lower) || [];
+  const upperVals = (fc && fc.forecast && fc.forecast.upper) || [];
+
+  const nh = historyVals.length;
+  const nf = predVals.length;
+  const n = nh + nf;
+
+  // Empty state fallback
+  if (nh === 0) {
+    const ticks = [100, 75, 50, 25, 0];
+    let g = '';
+    ticks.forEach((v, i) => {
+      const y = T + ((B - T) * i) / (ticks.length - 1);
+      g +=
+        `<line x1="${L}" y1="${y}" x2="${R}" y2="${y}" stroke="${v === 0 ? '#007AFF' : '#D0E4F7'}" stroke-width="${v === 0 ? 1.5 : 1}"/>` +
+        `<text x="${L - 10}" y="${y + 4}" text-anchor="end" font-size="12" fill="#64748B">${v}</text>`;
+    });
+    g += `<line x1="${L}" y1="${T}" x2="${L}" y2="${B}" stroke="#007AFF" stroke-width="1.5"/>`;
+    g += `<text x="${(L + R) / 2}" y="${(T + B) / 2}" text-anchor="middle" font-size="13" font-weight="500" fill="#64748B">No sales recorded yet. Log sales transactions to activate ETS and SARIMAX forecasting.</text>`;
+    $('fc-svg').innerHTML = g;
+    return;
   }
 
-  const ticks = [100, 75, 50, 25, 0];
+  // Calculate Y axis scale
+  const allVals = [...historyVals, ...predVals, ...upperVals];
+  const maxRaw = Math.max(...allVals, 10);
+  const stepMagnitude = Math.pow(10, Math.floor(Math.log10(maxRaw)));
+  const ceiling = Math.ceil((maxRaw * 1.15) / (stepMagnitude / 2)) * (stepMagnitude / 2) || 10;
+
+  const yTicks = [
+    ceiling,
+    Math.round(ceiling * 0.75),
+    Math.round(ceiling * 0.5),
+    Math.round(ceiling * 0.25),
+    0
+  ];
+
   let g = '';
-  ticks.forEach((v, i) => {
-    const y = T + ((B - T) * i) / (ticks.length - 1);
+
+  // Draw Horizontal Gridlines & Y labels
+  yTicks.forEach((v, i) => {
+    const y = T + ((B - T) * i) / (yTicks.length - 1);
     g +=
-      `<line x1="${L}" y1="${y}" x2="${R}" y2="${y}" stroke="${v === 0 ? '#007AFF' : '#D0E4F7'}" stroke-width="${v === 0 ? 1.5 : 1}"/>` +
-      `<text x="${L - 10}" y="${y + 4}" text-anchor="end" font-size="12" fill="#64748B">${v}</text>`;
+      `<line x1="${L}" y1="${y}" x2="${R}" y2="${y}" stroke="${v === 0 ? '#007AFF' : '#E2E8F0'}" stroke-width="${v === 0 ? 1.5 : 1}"/>` +
+      `<text x="${L - 10}" y="${y + 4}" text-anchor="end" font-size="11" font-weight="500" fill="#64748B">${v}</text>`;
   });
 
-  const step = (R - L) / (labels.length - 1);
-  labels.forEach((t, i) => {
-    const x = L + step * i;
-    g +=
-      `<line x1="${x}" y1="${B}" x2="${x}" y2="${B + 5}" stroke="#007AFF"/>` +
-      `<text x="${x}" y="${B + 22}" text-anchor="${i === 0 ? 'start' : i === labels.length - 1 ? 'end' : 'middle'}" font-size="12" fill="#64748B">${t}</text>`;
+  const dx = (R - L) / Math.max(1, n - 1);
+
+  // Compute (x, y) coordinates for history
+  const historyPoints = historyVals.map((v, i) => {
+    const x = L + i * dx;
+    const y = B - (v / ceiling) * (B - T);
+    return { x, y, val: v, date: historyDates[i] };
   });
+
+  // Compute (x, y) coordinates for forecast
+  const forecastPoints = predVals.map((v, i) => {
+    const x = L + (nh + i) * dx;
+    const y = B - (v / ceiling) * (B - T);
+    const yLow = B - (Math.max(0, lowerVals[i] || 0) / ceiling) * (B - T);
+    const yUp = B - (Math.max(0, upperVals[i] || 0) / ceiling) * (B - T);
+    return { x, y, yLow, yUp, val: v, date: predDates[i], lower: lowerVals[i], upper: upperVals[i] };
+  });
+
+  // 1. Shaded Confidence Interval Ribbon (Upper polygon connecting to Lower)
+  if (forecastPoints.length > 0) {
+    const lastHist = historyPoints[historyPoints.length - 1];
+    const upperRibbon = [
+      `${lastHist.x.toFixed(1)},${lastHist.y.toFixed(1)}`,
+      ...forecastPoints.map((p) => `${p.x.toFixed(1)},${p.yUp.toFixed(1)}`)
+    ];
+    const lowerRibbon = [
+      ...forecastPoints.slice().reverse().map((p) => `${p.x.toFixed(1)},${p.yLow.toFixed(1)}`),
+      `${lastHist.x.toFixed(1)},${lastHist.y.toFixed(1)}`
+    ];
+    const polyPoints = [...upperRibbon, ...lowerRibbon].join(' ');
+    g += `<polygon points="${polyPoints}" fill="rgba(83, 197, 248, 0.22)" stroke="none"/>`;
+  }
+
+  // 2. Today / Forecast Horizon Dividing Line
+  if (historyPoints.length > 0 && forecastPoints.length > 0) {
+    const splitX = historyPoints[historyPoints.length - 1].x;
+    g += `<line x1="${splitX.toFixed(1)}" y1="${T}" x2="${splitX.toFixed(1)}" y2="${B}" stroke="#53C5F8" stroke-dasharray="3 3" stroke-width="1.5" opacity="0.8"/>`;
+    g += `<text x="${(splitX + 4).toFixed(1)}" y="${T + 10}" font-size="10" font-weight="700" fill="#007AFF" letter-spacing="0.05em">PROJECTED ▶</text>`;
+  }
+
+  // 3. Historical Actual Sales Line & Dots
+  if (historyPoints.length > 0) {
+    const histPath = historyPoints.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    g += `<polyline points="${histPath}" fill="none" stroke="#007AFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    historyPoints.forEach((p) => {
+      g += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="#007AFF" stroke="#FFFFFF" stroke-width="2">` +
+        `<title>${esc(p.date)}: ${p.val} units (Actual)</title></circle>`;
+    });
+  }
+
+  // 4. Forecast Projected Sales Line & Dots
+  if (forecastPoints.length > 0) {
+    const lastHist = historyPoints[historyPoints.length - 1];
+    const fcPath = [
+      `${lastHist.x.toFixed(1)},${lastHist.y.toFixed(1)}`,
+      ...forecastPoints.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    ].join(' ');
+    g += `<polyline points="${fcPath}" fill="none" stroke="#53C5F8" stroke-width="2.5" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round"/>`;
+    forecastPoints.forEach((p) => {
+      g += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#FFFFFF" stroke="#53C5F8" stroke-width="2.5">` +
+        `<title>${esc(p.date)}: ${p.val} units [${p.lower} - ${p.upper}] (Predicted by ${esc(fc.activeModel)})</title></circle>`;
+    });
+  }
+
+  // 5. X Axis baseline & ticks
+  g += `<line x1="${L}" y1="${B}" x2="${R}" y2="${B}" stroke="#007AFF" stroke-width="1.5"/>`;
   g += `<line x1="${L}" y1="${T}" x2="${L}" y2="${B}" stroke="#007AFF" stroke-width="1.5"/>`;
+
+  // Draw X labels periodically
+  const allPoints = [...historyPoints, ...forecastPoints];
+  const labelInterval = Math.max(1, Math.ceil(allPoints.length / 8));
+  allPoints.forEach((p, i) => {
+    if (i % labelInterval === 0 || i === allPoints.length - 1) {
+      const d = new Date(p.date);
+      const labelText = isNaN(d) ? p.date : fmtMD(d);
+      g += `<line x1="${p.x.toFixed(1)}" y1="${B}" x2="${p.x.toFixed(1)}" y2="${B + 5}" stroke="#007AFF"/>` +
+        `<text x="${p.x.toFixed(1)}" y="${B + 18}" text-anchor="middle" font-size="11" font-weight="500" fill="#64748B">${labelText}</text>`;
+    }
+  });
+
   $('fc-svg').innerHTML = g;
+}
+
+async function renderForecastChart() {
+  try {
+    const fc = await API.getForecast(fcRange);
+    if (!fc) return;
+
+    // Update Model Badge
+    const badge = $('fc-model-badge');
+    const pill = $('fc-threshold-pill');
+    const insights = $('fc-insights');
+
+    if (badge) {
+      badge.className = 'model-badge';
+      if (fc.activeModel === 'SARIMAX') {
+        badge.classList.add('sarimax');
+        badge.innerHTML = '<i class="fa-solid fa-chart-line"></i> SARIMAX Active';
+      } else if (fc.activeModel === 'ETS') {
+        badge.classList.add('ets');
+        badge.innerHTML = '<i class="fa-solid fa-chart-simple"></i> ETS Active';
+      } else {
+        badge.innerHTML = '<i class="fa-solid fa-clock"></i> Awaiting Data';
+      }
+    }
+
+    if (pill) {
+      if (fc.activeModel === 'SARIMAX') {
+        pill.textContent = `${fc.thresholds.currentPoints} days recorded (Rich Data >= ${fc.thresholds.richThreshold})`;
+      } else if (fc.activeModel === 'ETS') {
+        pill.textContent = `${fc.thresholds.currentPoints} days recorded (${fc.thresholds.pointsNeededForRich} more for SARIMAX)`;
+      } else {
+        pill.textContent = `${fc.thresholds.currentPoints} / ${fc.thresholds.sparseThreshold} days recorded for ETS`;
+      }
+    }
+
+    if (insights) {
+      const sumPred = fc.forecast.predictions.reduce((a, b) => a + b, 0);
+      insights.innerHTML = `
+        <div class="fi-top">
+          <div class="fi-title">
+            <i class="fa-solid fa-brain" style="color:var(--primary)"></i>
+            Adaptive Forecasting Engine: <span>${esc(fc.activeModel)}</span>
+          </div>
+          <span class="threshold-pill">Threshold Switcher</span>
+        </div>
+        <div class="fi-desc">${esc(fc.rationale)}</div>
+        <div class="threshold-bar">
+          <div class="threshold-progress" style="width: ${fc.thresholds.progressPercent}%"></div>
+        </div>
+        <div class="threshold-markers">
+          <span>0 days</span>
+          <span>Threshold 1: 3 days (ETS)</span>
+          <span>Threshold 2: 14 days (SARIMAX)</span>
+        </div>
+        <div class="fi-metrics">
+          <div class="fi-metric">Active Model: <b>${esc(fc.metrics.modelDetails || fc.activeModel)}</b></div>
+          <div class="fi-metric">Mean Absolute Error (MAE): <b>${fc.metrics.mae}</b></div>
+          <div class="fi-metric">Projected Period Demand: <b>${Math.round(sumPred)} units</b></div>
+        </div>
+      `;
+    }
+
+    renderSvgForecast(fc);
+  } catch (err) {
+    console.error('Forecast render error:', err);
+  }
 }
 
 async function renderOverview() {
   const now = new Date();
-  renderForecastAxis();
+  await renderForecastChart();
 
   try {
     const ov = await API.getOverview();
@@ -599,7 +770,7 @@ document.addEventListener('DOMContentLoaded', () => {
       b.classList.add('on');
       if (b.dataset.range) {
         fcRange = b.dataset.range;
-        renderForecastAxis();
+        await renderForecastChart();
       }
       if (b.dataset.days) {
         histDays = Number(b.dataset.days);
