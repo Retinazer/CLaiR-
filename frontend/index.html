@@ -502,14 +502,52 @@
 
     <!-- SUPPLIERS -->
     <section class="screen" id="screen-suppliers">
-      <div class="screen-head">
-        <h1 id="sp-title">Suppliers</h1>
-        <p>Pin your suppliers on the map</p>
+      <div class="screen-head" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;">
+        <div>
+          <h1 id="sp-title">Suppliers &amp; Restockers</h1>
+          <p>Discover wholesale distributors near you and pin them to your supply chain</p>
+        </div>
       </div>
+
+      <!-- Restocker & Supplier Discovery Card -->
+      <div class="card" style="margin-bottom:18px; padding:18px 20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="chip" style="background:#007AFF; color:#fff; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; border-radius:999px; font-size:12px;">
+              <i class="fa-solid fa-radar"></i>
+            </span>
+            <b style="font-size:15px;">Restocker &amp; Wholesale Discovery</b>
+          </div>
+          <span class="threshold-pill" id="sp-discovery-status">Geo-search active</span>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+          <div style="flex:1; min-width:260px; position:relative;">
+            <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:14px;"></i>
+            <input id="sp-discover-input" type="text" placeholder="Search wholesale restockers (e.g., coffee roasters, oat milk, packaging)..." style="width:100%; padding-left:38px; border-radius:10px; border:1px solid var(--border); height:40px; font-size:14px; background:var(--surface);" />
+          </div>
+          <button id="sp-discover-btn" class="btn btn-primary" style="height:40px; display:inline-flex; align-items:center; gap:8px; padding:0 18px;">
+            <i class="fa-solid fa-magnifying-glass"></i> Find Nearby
+          </button>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px;">
+          <span style="color:var(--muted); font-weight:600; font-size:12px;">Popular Categories:</span>
+          <button class="sp-cat-chip" data-cat="Coffee Beans"><i class="fa-solid fa-mug-hot"></i> Coffee Beans</button>
+          <button class="sp-cat-chip" data-cat="Dairy &amp; Milk"><i class="fa-solid fa-bottle-droplet"></i> Dairy &amp; Milk</button>
+          <button class="sp-cat-chip" data-cat="Syrups"><i class="fa-solid fa-wine-bottle"></i> Syrups &amp; Sweeteners</button>
+          <button class="sp-cat-chip" data-cat="Packaging"><i class="fa-solid fa-box-open"></i> Packaging</button>
+          <button class="sp-cat-chip" data-cat="Bakery"><i class="fa-solid fa-wheat-awn"></i> Bakery &amp; Flour</button>
+        </div>
+
+        <!-- Discovered Restockers Results Container -->
+        <div id="sp-discover-results" style="margin-top:16px; display:none;"></div>
+      </div>
+
       <div class="supplier-layout">
         <div class="card">
           <div class="map" id="supplier-map"></div>
-          <p class="map-hint">Click anywhere on the map to add a supplier at that spot.</p>
+          <p class="map-hint">Click anywhere on the map to manually add a supplier, or use the discovery search above.</p>
         </div>
         <div class="card supplier-cards" id="supplier-cards"></div>
       </div>

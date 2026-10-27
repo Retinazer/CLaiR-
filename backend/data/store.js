@@ -158,8 +158,8 @@ module.exports = {
 
   getSuppliers: () => state.suppliers,
 
-  addSupplier: ({ name, category, lat, lng }) => {
-    if (!name || !lat || !lng) {
+  addSupplier: ({ name, category, lat, lng, phone, address, leadTimeDays }) => {
+    if (!name || lat == null || lng == null) {
       throw new Error('Name, latitude, and longitude are required');
     }
     const newSupplier = {
@@ -167,7 +167,10 @@ module.exports = {
       name: String(name).trim(),
       category: String(category || 'Supplier').trim(),
       lat: Number(lat),
-      lng: Number(lng)
+      lng: Number(lng),
+      phone: phone ? String(phone).trim() : '',
+      address: address ? String(address).trim() : '',
+      leadTimeDays: leadTimeDays != null ? Math.max(1, Number(leadTimeDays)) : 3
     };
     state.suppliers.push(newSupplier);
     saveStore();

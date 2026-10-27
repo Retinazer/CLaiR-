@@ -610,7 +610,7 @@ function restockList() {
 function renderRestock() {
   const wrap = $('restock-wrap');
   const low = restockList();
-  const heads = ['SKU', 'Item', 'On Hand', 'Auto Reorder Pt', 'Safety Stock', 'Suggested Qty'];
+  const heads = ['SKU', 'Item', 'On Hand', 'Auto Reorder Pt', 'Safety Stock', 'Suggested Qty', 'Action'];
   if (!inventory.length) {
     wrap.innerHTML = skTable(
       heads,
@@ -629,17 +629,27 @@ function renderRestock() {
     wrap.innerHTML =
       '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;background:#EBF4FB;padding:8px 14px;border-radius:10px;border:1px solid #D0E4F7;display:flex;align-items:center;gap:8px;">' +
       '<i class="fa-solid fa-wand-magic-sparkles" style="color:var(--primary);font-size:14px;"></i> <span><b>Algorithmic Safety Level:</b> Reorder points are continuously tuned via <code>(Lead Time × Daily Demand) + Safety Stock (95% Service Level)</code>.</span></div>' +
-      '<table><thead><tr><th>SKU</th><th>Item</th><th>On Hand</th><th>Auto Reorder Pt</th><th>Safety Stock</th><th>Suggested Qty</th></tr></thead><tbody>' +
+      '<table><thead><tr><th>SKU</th><th>Item</th><th>On Hand</th><th>Auto Reorder Pt</th><th>Safety Stock</th><th>Suggested Qty</th><th class="r">Find Restockers</th></tr></thead><tbody>' +
       low
         .map(
           (it) =>
             `<tr><td><b>${esc(it.sku)}</b></td><td>${esc(it.name)}</td><td>${it.qty} ${esc(it.unit)}</td>` +
             `<td><span class="badge-rop" title="Auto-configured by lead time & demand variance">${it.reorder} ${esc(it.unit)}</span></td>` +
             `<td>${it.safetyStock != null ? `${it.safetyStock} ${esc(it.unit)}` : '—'}</td>` +
-            `<td><b style="color:var(--primary)">${it.suggestedQty || Math.max(0, it.reorder * 2 - it.qty)} ${esc(it.unit)}</b></td></tr>`
+            `<td><b style="color:var(--primary)">${it.suggestedQty || Math.max(0, it.reorder * 2 - it.qty)} ${esc(it.unit)}</b></td>` +
+            `<td class="r"><button class="btn-sm" style="color:var(--primary);border-color:#BAE6FD;background:#F0F9FF;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-weight:600;" data-find-restocker="${esc(it.name)}"><i class="fa-solid fa-compass"></i> Find Restockers</button></td></tr>`
         )
         .join('') +
       '</tbody></table>';
+
+    wrap.querySelectorAll('[data-find-restocker]').forEach((b) => {
+      b.onclick = () => {
+        const query = b.dataset.findRestocker;
+        goScreen('suppliers');
+        if ($('sp-discover-input')) $('sp-discover-input').value = query;
+        performSupplierDiscovery(query);
+      };
+    });
   }
 
   const sel = $('restock-sku');
@@ -741,10 +751,16 @@ function renderSupplierCards() {
   host.innerHTML = suppliers
     .map((s, i) => {
       const d = userPos ? ' · ' + distKm(userPos, s).toFixed(1) + ' km away' : '';
+      const lt = s.leadTimeDays ? ` · ${s.leadTimeDays}d lead time` : '';
       const id = s.id || i;
+      const cleanPhone = s.phone ? s.phone.replace(/[^0-9]/g, '') : '';
       return (
         `<div class="sup-card"><div class="top"><b>${esc(s.name)}</b><button class="btn-sm" data-del-sup="${id}">Remove</button></div>` +
-        `<div class="meta">${esc(s.category || 'Supplier')}${d}</div></div>`
+        `<div class="meta">${esc(s.category || 'Supplier')}${d}${lt}</div>` +
+        (s.address ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;">${esc(s.address)}</div>` : '') +
+        (s.phone ? `<div style="font-size:12px;margin-top:6px;display:flex;align-items:center;gap:10px;"><span style="color:#0369A1;"><i class="fa-solid fa-phone"></i> ${esc(s.phone)}</span>` +
+          `<a href="https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hi ${s.name}, checking stock availability.`)}" target="_blank" style="color:#059669;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><i class="fa-brands fa-whatsapp"></i> Chat</a></div>` : '') +
+        `</div>`
       );
     })
     .join('');
@@ -761,6 +777,123 @@ function renderSupplierCards() {
       }
     };
   });
+}
+
+let discoveredMarkers = null;
+
+async function performSupplierDiscovery(query = '', category = '') {
+  const container = $('sp-discover-results');
+  const statusBadge = $('sp-discovery-status');
+  if (!container) return;
+
+  container.style.display = 'block';
+  container.innerHTML = '<div class="sk-note" style="padding:16px;"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px; color:var(--primary);"></i> Searching nearby wholesale distributors & restockers...</div>';
+
+  if (statusBadge) {
+    statusBadge.textContent = 'Scanning network...';
+  }
+
+  try {
+    const lat = userPos ? userPos.lat : DEFAULT_CENTER[0];
+    const lng = userPos ? userPos.lng : DEFAULT_CENTER[1];
+    const res = await API.discoverSuppliers({ q: query, category, lat, lng });
+    const list = (res && res.suppliers) ? res.suppliers : [];
+
+    if (statusBadge) {
+      statusBadge.textContent = `${list.length} restockers found`;
+    }
+
+    if (!list.length) {
+      container.innerHTML = `<div class="sk-note" style="padding:16px;"><b>No suppliers found</b>Try searching with broader terms like "coffee", "dairy", or "packaging".</div>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span style="font-size:13px; font-weight:700; color:var(--text);">Discovered Restockers &amp; Wholesalers (${list.length})</span>
+        <button class="btn-plain" id="sp-clear-discover" style="font-size:12px; color:var(--muted);"><i class="fa-solid fa-xmark"></i> Close</button>
+      </div>
+      <div class="discovered-grid">
+        ${list.map((s) => `
+          <div class="discovered-card">
+            <div>
+              <div class="discovered-head">
+                <b style="font-size:14px; color:var(--text);">${esc(s.name)}</b>
+                <span style="font-size:11px; background:#FEF3C7; color:#92400E; padding:2px 6px; border-radius:6px; font-weight:700;">★ ${s.rating || 4.7}</span>
+              </div>
+              <div style="font-size:12px; color:var(--muted); margin:4px 0 8px;">
+                ${s.address ? esc(s.address) : 'Wholesale Distribution'}
+              </div>
+              <div class="discovered-meta">
+                <span><i class="fa-solid fa-location-dot"></i> ${s.distanceKm != null ? `${s.distanceKm} km` : 'Local'}</span>
+                <span><i class="fa-solid fa-truck-fast"></i> ${s.leadTimeDays}d lead time</span>
+                ${s.moq ? `<span style="background:#F1F5F9; color:#475569;">MOQ: ${esc(s.moq)}</span>` : ''}
+              </div>
+              ${s.phone ? `<div style="font-size:12px; color:#0369A1; margin-top:8px; font-weight:500;"><i class="fa-solid fa-phone"></i> ${esc(s.phone)}</div>` : ''}
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+              <button class="btn btn-primary" style="flex:1; font-size:12px; padding:7px 10px; display:inline-flex; align-items:center; justify-content:center; gap:5px;" data-pin-supplier='${JSON.stringify({ name: s.name, category: s.category, lat: s.lat, lng: s.lng, phone: s.phone, address: s.address, leadTimeDays: s.leadTimeDays }).replace(/'/g, '&apos;')}'>
+                <i class="fa-solid fa-map-pin"></i> Pin to My Suppliers
+              </button>
+              ${s.phone ? `<a href="https://wa.me/${s.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi ${s.name}, I found your wholesale business via CLaiR. Do you have stock available?`)}" target="_blank" class="btn-plain" style="padding:7px 10px; font-size:12px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #A7F3D0; background:#ECFDF5; color:#065F46; border-radius:8px;" title="Chat via WhatsApp"><i class="fa-brands fa-whatsapp" style="font-size:14px;"></i></a>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    // Hook up Pin to My Suppliers
+    container.querySelectorAll('[data-pin-supplier]').forEach((b) => {
+      b.onclick = async () => {
+        try {
+          const supData = JSON.parse(b.getAttribute('data-pin-supplier'));
+          await API.addSupplier(supData);
+          toast(`Pinned "${supData.name}" to your suppliers!`);
+          b.disabled = true;
+          b.innerHTML = '<i class="fa-solid fa-check"></i> Pinned';
+          b.style.background = '#10B981';
+          b.style.borderColor = '#10B981';
+          await syncSuppliers();
+        } catch (err) {
+          toast('Error adding supplier: ' + err.message);
+        }
+      };
+    });
+
+    if ($('sp-clear-discover')) {
+      $('sp-clear-discover').onclick = () => {
+        container.style.display = 'none';
+        if (discoveredMarkers && map) {
+          discoveredMarkers.clearLayers();
+        }
+      };
+    }
+
+    // Add purple preview markers to Leaflet map
+    if (map) {
+      if (!discoveredMarkers) {
+        discoveredMarkers = L.layerGroup().addTo(map);
+      } else {
+        discoveredMarkers.clearLayers();
+      }
+      list.forEach((s) => {
+        if (s.lat && s.lng) {
+          L.circleMarker([s.lat, s.lng], {
+            radius: 9,
+            color: '#fff',
+            weight: 2,
+            fillColor: '#8B5CF6',
+            fillOpacity: 0.95
+          })
+            .bindTooltip(`🔍 ${esc(s.name)} (${s.leadTimeDays}d lead time)`, { direction: 'top', offset: [0, -6] })
+            .addTo(discoveredMarkers);
+        }
+      });
+    }
+
+  } catch (err) {
+    container.innerHTML = `<div class="sk-note" style="padding:16px; color:#BE123C;"><b>Discovery error:</b> ${esc(err.message)}</div>`;
+  }
 }
 
 function renderMarkers() {
@@ -1122,6 +1255,34 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize data-ico SVGs
   document.querySelectorAll('[data-ico]').forEach((el) => {
     el.innerHTML = ico(el.dataset.ico);
+  });
+
+  // Restocker Discovery Events
+  if ($('sp-discover-btn')) {
+    $('sp-discover-btn').onclick = () => {
+      const q = ($('sp-discover-input') && $('sp-discover-input').value) ? $('sp-discover-input').value.trim() : '';
+      performSupplierDiscovery(q);
+    };
+  }
+
+  if ($('sp-discover-input')) {
+    $('sp-discover-input').onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const q = e.target.value.trim();
+        performSupplierDiscovery(q);
+      }
+    };
+  }
+
+  document.querySelectorAll('.sp-cat-chip').forEach((btn) => {
+    btn.onclick = () => {
+      document.querySelectorAll('.sp-cat-chip').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      const cat = btn.dataset.cat;
+      if ($('sp-discover-input')) $('sp-discover-input').value = cat;
+      performSupplierDiscovery('', cat);
+    };
   });
 
   // Immediately render zero line at 0,0 so user sees the baseline graph instantly with no loading delay

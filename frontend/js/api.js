@@ -120,6 +120,16 @@ const API = {
     return this.request('/api/suppliers');
   },
 
+  discoverSuppliers({ q = '', category = '', lat, lng, radius = 50 } = {}) {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (category) params.set('category', category);
+    if (lat != null) params.set('lat', lat);
+    if (lng != null) params.set('lng', lng);
+    if (radius != null) params.set('radius', radius);
+    return this.request(`/api/suppliers/discover?${params.toString()}`);
+  },
+
   addSupplier(supplier) {
     return this.request('/api/suppliers', {
       method: 'POST',
@@ -227,6 +237,19 @@ const API = {
     }
 
     if (endpoint.startsWith('/api/suppliers')) {
+      if (endpoint.includes('/discover')) {
+        return {
+          query: 'Offline Wholesalers',
+          userCoordinates: { lat: -6.2088, lng: 106.8456 },
+          totalFound: 4,
+          suppliers: [
+            { id: 'fb-1', name: 'Archipelago Coffee Importers & Roastery', category: 'Coffee Beans', distanceKm: 3.2, leadTimeDays: 1, phone: '+62 21 5589 1234', address: 'Kawasan Industri Pergudangan Blok C4', rating: 4.8, moq: '10 kg', tags: ['Wholesale Green/Roasted Beans', 'Barista Supply'], lat: -6.19, lng: 106.86 },
+            { id: 'fb-2', name: 'Apex Dairy & Barista Plant-Milk Distribution', category: 'Dairy & Milk', distanceKm: 4.8, leadTimeDays: 1, phone: '+62 21 8920 6789', address: 'Cold Chain Hub Kav. 12', rating: 4.7, moq: '12 cartons', tags: ['Cold-Chain Guaranteed', 'Oat & Dairy Specialist'], lat: -6.22, lng: 106.82 },
+            { id: 'fb-3', name: 'EcoPack Solutions & Paper Goods Wholesale', category: 'Packaging', distanceKm: 6.5, leadTimeDays: 2, phone: '+62 21 3322 1100', address: 'Pergudangan Prima Blok E-15', rating: 4.8, moq: '500 pcs', tags: ['Biodegradable', 'Bulk Discount'], lat: -6.24, lng: 106.88 },
+            { id: 'fb-4', name: 'Artisan Syrups & Beverage Concentrates Co.', category: 'Syrups & Flavoring', distanceKm: 5.1, leadTimeDays: 2, phone: '+62 21 7788 3344', address: 'Perkantoran BizPark Blok B-09', rating: 4.7, moq: '6 bottles', tags: ['Natural Extracts', 'B2B Wholesale'], lat: -6.18, lng: 106.81 }
+          ]
+        };
+      }
       if (method === 'GET') return sups;
       if (method === 'POST') {
         const sup = JSON.parse(options.body);
