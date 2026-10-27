@@ -89,6 +89,53 @@ function calculateItemMetrics(item, sales = [], suppliers = []) {
     status = 'low';
   }
 
+  // Expiry & Spoilage Risk Forecasting
+  const todayStr = store.getCurrentDate ? store.getCurrentDate() : new Date().toISOString().slice(0, 10);
+  const expiryDate = item.expiryDate || null;
+  let daysToExpiry = null;
+  let expiryStatus = 'none'; // 'none' | 'safe' | 'warning' | 'critical' | 'expired'
+  let unitsAtRisk = 0;
+  let projectedSalesBeforeExpiry = 0;
+  let expiryRiskPercent = 0;
+  let expiryRecommendation = '';
+
+  if (expiryDate) {
+    const today = new Date(todayStr + 'T12:00:00Z');
+    const exp = new Date(expiryDate + 'T12:00:00Z');
+    if (!isNaN(exp)) {
+      daysToExpiry = Math.ceil((exp - today) / 864e5);
+      if (daysToExpiry < 0) {
+        expiryStatus = 'expired';
+        unitsAtRisk = Number(item.qty) || 0;
+        expiryRiskPercent = 100;
+        expiryRecommendation = `Expired ${Math.abs(daysToExpiry)} day${Math.abs(daysToExpiry) === 1 ? '' : 's'} ago. Remove from active stock and route to partner.`;
+      } else if (daysToExpiry === 0) {
+        expiryStatus = 'critical';
+        unitsAtRisk = Number(item.qty) || 0;
+        expiryRiskPercent = 100;
+        expiryRecommendation = 'Expires today! Mark down immediately or prepare for recovery.';
+      } else {
+        projectedSalesBeforeExpiry = Math.round(dailyDemand * daysToExpiry);
+        unitsAtRisk = Math.max(0, (Number(item.qty) || 0) - projectedSalesBeforeExpiry);
+        expiryRiskPercent = item.qty > 0 ? Math.round((unitsAtRisk / item.qty) * 100) : 0;
+
+        if (unitsAtRisk > 0) {
+          if (daysToExpiry <= 5) {
+            expiryStatus = 'critical';
+            expiryRecommendation = `High spoilage risk: ${unitsAtRisk} ${item.unit} won't sell before expiry (${daysToExpiry}d left). Run 30% flash promo.`;
+          } else {
+            expiryStatus = 'warning';
+            expiryRecommendation = `Moderate risk: ${unitsAtRisk} ${item.unit} surplus expected at expiry (${daysToExpiry}d left). Bundle or promote.`;
+          }
+        } else {
+          expiryStatus = 'safe';
+          const bufferDays = daysOfStock != null ? Math.max(0, daysToExpiry - daysOfStock) : daysToExpiry;
+          expiryRecommendation = `Healthy turnover: Entire stock projected to sell ~${bufferDays} days before expiry.`;
+        }
+      }
+    }
+  }
+
   return {
     ...item,
     reorder: autoReorder,
@@ -99,7 +146,14 @@ function calculateItemMetrics(item, sales = [], suppliers = []) {
     dailyDemand: Math.round(dailyDemand * 10) / 10,
     daysOfStock,
     suggestedQty,
-    status
+    status,
+    expiryDate,
+    daysToExpiry,
+    expiryStatus,
+    unitsAtRisk,
+    projectedSalesBeforeExpiry,
+    expiryRiskPercent,
+    expiryRecommendation
   };
 }
 
@@ -190,7 +244,24 @@ function getOverviewData() {
     reliabilityText,
     urgentCount: counts.critical + counts.low,
     urgentItems,
-    forecast: forecastInfo
+    forecast: forecastInfo,
+    expiryForecast: getExpiryForecast()
+  };
+}
+
+function getExpiryForecast() {
+  const inventory = getEnhancedInventory();
+  const tracked = inventory.filter((it) => it.expiryDate);
+  const atRisk = tracked.filter((it) => it.unitsAtRisk > 0 || it.expiryStatus === 'expired');
+  const critical = tracked.filter((it) => it.expiryStatus === 'critical' || it.expiryStatus === 'expired');
+  const totalUnitsAtRisk = atRisk.reduce((acc, it) => acc + (it.unitsAtRisk || 0), 0);
+
+  return {
+    totalTracked: tracked.length,
+    atRiskCount: atRisk.length,
+    criticalCount: critical.length,
+    totalUnitsAtRisk,
+    items: tracked.sort((a, b) => (a.daysToExpiry ?? 999) - (b.daysToExpiry ?? 999))
   };
 }
 
@@ -255,6 +326,7 @@ module.exports = {
   getStatusCounts,
   getOverviewData,
   getRestockRecommendations,
-  getSalesSummary
+  getSalesSummary,
+  getExpiryForecast
 };
 

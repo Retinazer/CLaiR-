@@ -62,7 +62,8 @@ module.exports = {
       name: String(item.name).trim(),
       qty: Number(item.qty) || 0,
       unit: String(item.unit || 'pcs').trim(),
-      reorder: Number(item.reorder) || 0
+      reorder: Number(item.reorder) || 0,
+      expiryDate: item.expiryDate ? String(item.expiryDate).trim() : null
     };
     state.inventory.push(newItem);
     saveStore();
@@ -77,6 +78,21 @@ module.exports = {
       throw new Error('Item not found');
     }
     item.qty = Math.max(0, item.qty + (Number(delta) || 0));
+    saveStore();
+    return item;
+  },
+
+  updateInventoryItem: (sku, updates = {}) => {
+    const item = state.inventory.find(
+      (i) => i.sku.toLowerCase() === String(sku).toLowerCase()
+    );
+    if (!item) {
+      throw new Error('Item not found');
+    }
+    if (updates.name !== undefined) item.name = String(updates.name).trim();
+    if (updates.qty !== undefined) item.qty = Math.max(0, Number(updates.qty) || 0);
+    if (updates.unit !== undefined) item.unit = String(updates.unit).trim();
+    if (updates.expiryDate !== undefined) item.expiryDate = updates.expiryDate ? String(updates.expiryDate).trim() : null;
     saveStore();
     return item;
   },

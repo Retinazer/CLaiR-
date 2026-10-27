@@ -38,6 +38,10 @@ const API = {
     return this.request(`/api/forecast?range=${encodeURIComponent(range)}&granularity=${encodeURIComponent(granularity)}`);
   },
 
+  getExpiry() {
+    return this.request('/api/expiry');
+  },
+
   // Simulation Clock & Day Progression
   getSimulation() {
     return this.request('/api/simulation');
@@ -165,13 +169,15 @@ const API = {
     const enhanceItem = (i) => {
       const rop = typeof calcAutoReorder === 'function' ? calcAutoReorder(i, sales, sups) : Math.max(2, Math.round((i.qty || 10) * 0.25));
       const k = i.qty <= 0 || i.qty < rop / 2 ? 'critical' : i.qty < rop ? 'low' : 'good';
+      const expMetrics = typeof calcExpiryMetrics === 'function' ? calcExpiryMetrics(i) : {};
       return {
         ...i,
         reorder: rop,
         autoReorder: rop,
         reorderAuto: true,
         status: k,
-        suggestedQty: Math.max(0, rop * 2 - i.qty)
+        suggestedQty: Math.max(0, rop * 2 - i.qty),
+        ...expMetrics
       };
     };
 
@@ -265,6 +271,20 @@ const API = {
     if (endpoint.startsWith('/api/restock')) {
       const enhancedInv = inv.map(enhanceItem);
       return enhancedInv.filter(i => i.qty < i.reorder);
+    }
+
+    if (endpoint.startsWith('/api/expiry')) {
+      const enhancedInv = inv.map(enhanceItem);
+      const tracked = enhancedInv.filter(it => it.expiryDate);
+      const atRisk = tracked.filter(it => it.unitsAtRisk > 0 || it.expiryStatus === 'expired');
+      const critical = tracked.filter(it => it.expiryStatus === 'critical' || it.expiryStatus === 'expired');
+      return {
+        totalTracked: tracked.length,
+        atRiskCount: atRisk.length,
+        criticalCount: critical.length,
+        totalUnitsAtRisk: atRisk.reduce((a, b) => a + (b.unitsAtRisk || 0), 0),
+        items: tracked
+      };
     }
 
     if (endpoint.startsWith('/api/forecast')) {

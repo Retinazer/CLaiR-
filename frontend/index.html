@@ -335,6 +335,18 @@
         </div>
         <div class="forecast-insights" id="fc-insights"></div>
       </div>
+
+      <!-- EXPIRY & SPOILAGE FORECAST PANEL -->
+      <div class="panel" id="ov-expiry-panel" style="margin-top: 24px;">
+        <div class="panel-head">
+          <div class="ptitle">
+            <span class="chip" style="background:#FFF1F2; color:#E11D48;"><i class="fa-solid fa-hourglass-half"></i></span>
+            <h2>Expiry &amp; Spoilage Forecast</h2>
+          </div>
+          <span class="threshold-pill" id="ov-expiry-pill">Evaluating shelf life...</span>
+        </div>
+        <div id="ov-expiry-content"></div>
+      </div>
     </section>
 
     <!-- HISTORY -->
@@ -433,11 +445,12 @@
           <input id="inv-sku" placeholder="SKU" required style="width:100px;" />
           <input id="inv-name" placeholder="Item name" required style="flex:1; min-width:140px;" />
           <input id="inv-qty" type="number" min="0" placeholder="On hand" required style="width:115px;" />
-          <input id="inv-unit" placeholder="Unit (g, ml, pcs)" required style="width:160px;" />
+          <input id="inv-unit" placeholder="Unit (g, ml, pcs)" required style="width:140px;" />
+          <input id="inv-expiry" type="date" title="Expiry date (optional)" style="width:140px;" />
           <button class="btn btn-primary" type="submit">Add item</button>
           <div style="width: 100%; font-size: 12px; color: var(--muted); margin-top: 6px;">
             <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--primary); margin-right:4px;"></i>
-            Reorder points are automatically configured and continually updated through CLaiR's statistical forecasting algorithm.
+            Reorder points &amp; spoilage risk are automatically forecasted through CLaiR's supply-chain algorithms.
           </div>
         </form>
         <div class="toolbar">
@@ -446,6 +459,7 @@
             <button data-f="critical">Critical<span class="cnt">0</span></button>
             <button data-f="low">Low<span class="cnt">0</span></button>
             <button data-f="good">Healthy<span class="cnt">0</span></button>
+            <button data-f="expiring">Expiry Risk<span class="cnt">0</span></button>
           </div>
           <input id="inv-search" placeholder="Search items, SKUs..." autocomplete="off" />
         </div>

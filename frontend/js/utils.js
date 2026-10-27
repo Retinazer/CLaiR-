@@ -142,6 +142,71 @@ const STATUS_UI = {
 
 const statusPill = (k) => `<span class="spill ${k}">${ico(STATUS_UI[k][1], 14)}${STATUS_UI[k][0]}</span>`;
 
+// Expiry & Spoilage Forecast Helper
+function calcExpiryMetrics(it, todayStr) {
+  if (it.expiryStatus && it.expiryStatus !== 'none') return it;
+  const expiryDate = it.expiryDate || null;
+  if (!expiryDate) {
+    return { ...it, expiryStatus: 'none', daysToExpiry: null, unitsAtRisk: 0, expiryRecommendation: '' };
+  }
+  const today = new Date((todayStr || new Date().toISOString().slice(0, 10)) + 'T12:00:00Z');
+  const exp = new Date(expiryDate + 'T12:00:00Z');
+  if (isNaN(exp)) {
+    return { ...it, expiryStatus: 'none', daysToExpiry: null, unitsAtRisk: 0, expiryRecommendation: '' };
+  }
+  const daysToExpiry = Math.ceil((exp - today) / 864e5);
+  const daily = Number(it.dailyDemand) || 0;
+  let expiryStatus = 'none';
+  let unitsAtRisk = 0;
+  let expiryRecommendation = '';
+
+  if (daysToExpiry < 0) {
+    expiryStatus = 'expired';
+    unitsAtRisk = Number(it.qty) || 0;
+    expiryRecommendation = `Expired ${Math.abs(daysToExpiry)}d ago`;
+  } else if (daysToExpiry === 0) {
+    expiryStatus = 'critical';
+    unitsAtRisk = Number(it.qty) || 0;
+    expiryRecommendation = 'Expires today!';
+  } else {
+    const projSales = Math.round(daily * daysToExpiry);
+    unitsAtRisk = Math.max(0, (Number(it.qty) || 0) - projSales);
+    if (unitsAtRisk > 0) {
+      expiryStatus = daysToExpiry <= 5 ? 'critical' : 'warning';
+      expiryRecommendation = `${unitsAtRisk} ${it.unit} at spoilage risk (${daysToExpiry}d left)`;
+    } else {
+      expiryStatus = 'safe';
+      expiryRecommendation = `Healthy (${daysToExpiry}d left)`;
+    }
+  }
+
+  return {
+    ...it,
+    daysToExpiry,
+    expiryStatus,
+    unitsAtRisk,
+    expiryRecommendation
+  };
+}
+
+function expiryPill(it) {
+  if (!it.expiryDate) return '<span class="dim">—</span>';
+  const k = it.expiryStatus || 'none';
+  if (k === 'expired') {
+    return `<span class="spill critical" title="${esc(it.expiryRecommendation)}"><i class="fa-solid fa-triangle-exclamation"></i> Expired</span>`;
+  }
+  if (k === 'critical') {
+    return `<span class="spill critical" title="${esc(it.expiryRecommendation)}"><i class="fa-solid fa-fire"></i> ${it.unitsAtRisk} at risk (${it.daysToExpiry}d)</span>`;
+  }
+  if (k === 'warning') {
+    return `<span class="spill low" title="${esc(it.expiryRecommendation)}"><i class="fa-solid fa-clock"></i> ${it.unitsAtRisk} at risk (${it.daysToExpiry}d)</span>`;
+  }
+  if (k === 'safe') {
+    return `<span class="spill good" title="${esc(it.expiryRecommendation)}"><i class="fa-solid fa-shield-halved"></i> Safe (${it.daysToExpiry}d)</span>`;
+  }
+  return `<span class="dim">${it.expiryDate}</span>`;
+}
+
 // SVG Icons Dictionary
 const ICONS = {
   'alert-circle':

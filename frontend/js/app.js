@@ -421,6 +421,74 @@ async function renderOverview() {
         .join('');
       host.querySelectorAll('[data-go-restock]').forEach((b) => (b.onclick = () => goScreen('restock')));
     }
+
+    // Render Expiry & Spoilage Forecast Panel
+    const expPill = $('ov-expiry-pill');
+    const expContent = $('ov-expiry-content');
+    const ef = ov.expiryForecast || { totalTracked: 0, atRiskCount: 0, criticalCount: 0, totalUnitsAtRisk: 0, items: [] };
+
+    if (expPill) {
+      if (!ef.totalTracked) {
+        expPill.textContent = 'No items tracked with expiry';
+        expPill.className = 'threshold-pill';
+        expPill.style = '';
+      } else if (ef.atRiskCount > 0) {
+        expPill.textContent = `${ef.atRiskCount} item${ef.atRiskCount === 1 ? '' : 's'} at risk (${ef.totalUnitsAtRisk} units surplus)`;
+        expPill.className = 'threshold-pill';
+        expPill.style.color = '#E11D48';
+        expPill.style.borderColor = '#FECDD3';
+        expPill.style.background = '#FFF1F2';
+      } else {
+        expPill.textContent = `All clear · ${ef.totalTracked} item${ef.totalTracked === 1 ? '' : 's'} safe`;
+        expPill.className = 'threshold-pill';
+        expPill.style.color = '#059669';
+        expPill.style.borderColor = '#A7F3D0';
+        expPill.style.background = '#ECFDF5';
+      }
+    }
+
+    if (expContent) {
+      if (!ef.totalTracked) {
+        expContent.innerHTML =
+          '<div class="sk-note" style="padding:16px 20px;">' +
+          '<b>No expiry dates set yet</b>' +
+          'Add expiry dates when creating items in Inventory. CLaiR compares shelf life against predicted daily consumption and alerts you before stock spoils.' +
+          '</div>';
+      } else if (!ef.atRiskCount) {
+        expContent.innerHTML =
+          '<div style="background:#ECFDF5; border:1px solid #A7F3D0; border-radius:14px; padding:16px 20px; display:flex; align-items:center; gap:14px;">' +
+          '<span class="chip green" style="background:#10B981; color:#fff; width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; border-radius:999px;"><i class="fa-solid fa-shield-halved"></i></span>' +
+          '<div style="flex:1;">' +
+          '<b style="color:#065F46; font-size:15px; display:block;">Zero Spoilage Risk</b>' +
+          '<small style="color:#047857; font-size:13px;">Based on statistical sales velocity, 100% of tracked inventory is projected to sell completely before expiring.</small>' +
+          '</div></div>';
+      } else {
+        const atRiskItems = ef.items.filter((it) => it.unitsAtRisk > 0 || it.expiryStatus === 'expired');
+        expContent.innerHTML = atRiskItems
+          .map((it) => {
+            const isCritical = it.expiryStatus === 'critical' || it.expiryStatus === 'expired';
+            return `
+            <div class="attn ${isCritical ? 'critical' : 'low'}" style="margin-bottom:10px;">
+              <span class="spill ${isCritical ? 'critical' : 'low'}">
+                <i class="fa-solid ${isCritical ? 'fa-fire' : 'fa-hourglass-half'}"></i> ${it.daysToExpiry <= 0 ? 'Expired' : `${it.daysToExpiry}d left`}
+              </span>
+              <div class="body">
+                <b>${esc(it.name)} <small style="display:inline; font-weight:normal; color:#64748B;">(${esc(it.sku)})</small></b>
+                <small style="color:${isCritical ? '#BE123C' : '#0369A1'}; font-weight:700; display:block; margin-top:3px;">
+                  ⚠️ Spoilage Forecast: ${it.unitsAtRisk} ${esc(it.unit)} projected to expire unsold (${it.expiryRiskPercent}% surplus)
+                </small>
+                <div style="font-size:12px; color:#64748B; margin-top:3px;">
+                  ${esc(it.expiryRecommendation)}
+                </div>
+              </div>
+              <button class="${isCritical ? 'btn-main' : 'btn-plain'}" data-go-inv style="font-size:13px; padding:8px 14px;">View Stock</button>
+            </div>
+          `;
+          })
+          .join('');
+        expContent.querySelectorAll('[data-go-inv]').forEach((b) => (b.onclick = () => goScreen('inventory')));
+      }
+    }
   } catch (err) {
     console.error('Overview render error:', err);
   }
@@ -431,41 +499,49 @@ async function renderOverview() {
 // ============================================================================
 
 function statusCounts() {
-  const c = { critical: 0, low: 0, good: 0 };
-  inventory.forEach((it) => c[statusKey(it)]++);
+  const c = { critical: 0, low: 0, good: 0, expiring: 0 };
+  inventory.forEach((it) => {
+    c[statusKey(it)] = (c[statusKey(it)] || 0) + 1;
+    if (it.unitsAtRisk > 0 || it.expiryStatus === 'expired' || it.expiryStatus === 'critical' || it.expiryStatus === 'warning') {
+      c.expiring++;
+    }
+  });
   return c;
 }
 
 function renderInventory() {
   const c = statusCounts(), n = inventory.length;
   $('inv-date').textContent = 'As of ' + fmtToday(new Date());
-  $('inv-sub').textContent = `${n} item${n === 1 ? '' : 's'} tracked · ${c.critical + c.low} below auto reorder point`;
+  $('inv-sub').textContent = `${n} item${n === 1 ? '' : 's'} tracked · ${c.critical + c.low} below auto reorder point · ${c.expiring} at expiry risk`;
   $('inv-crit').textContent = c.critical;
   $('inv-low').textContent = c.low;
   $('inv-good').textContent = c.good;
   $('inv-total').textContent = n;
 
-  const counts = { all: n, critical: c.critical, low: c.low, good: c.good };
+  const counts = { all: n, critical: c.critical, low: c.low, good: c.good, expiring: c.expiring };
   document.querySelectorAll('#inv-tabs button').forEach((b) => {
-    b.querySelector('.cnt').textContent = counts[b.dataset.f];
+    b.querySelector('.cnt').textContent = counts[b.dataset.f] != null ? counts[b.dataset.f] : 0;
     b.classList.toggle('on', b.dataset.f === invFilter);
   });
 
   const wrap = $('inv-wrap');
-  const heads = ['Item', 'On hand', 'Daily demand', 'Days left', 'Auto Reorder Pt', 'Status'];
+  const heads = ['Item', 'On hand', 'Daily demand', 'Days left', 'Auto Reorder Pt', 'Expiry Risk', 'Status'];
   if (!n) {
-    wrap.innerHTML = skTable(heads, 5, 'Use "+ New item" above to start tracking stock.', 'No inventory yet');
+    wrap.innerHTML = skTable(heads, 6, 'Use "+ New item" above to start tracking stock.', 'No inventory yet');
     return;
   }
 
   const q = invQuery.trim().toLowerCase();
   const rows = inventory
     .map((it) => ({ it, k: statusKey(it) }))
-    .filter(
-      (r) =>
-        (invFilter === 'all' || r.k === invFilter) &&
-        (!q || r.it.name.toLowerCase().includes(q) || r.it.sku.toLowerCase().includes(q))
-    );
+    .filter((r) => {
+      if (invFilter === 'expiring') {
+        if (!(r.it.unitsAtRisk > 0 || r.it.expiryStatus === 'expired' || r.it.expiryStatus === 'critical' || r.it.expiryStatus === 'warning')) return false;
+      } else if (invFilter !== 'all' && r.k !== invFilter) {
+        return false;
+      }
+      return !q || r.it.name.toLowerCase().includes(q) || r.it.sku.toLowerCase().includes(q);
+    });
 
   if (!rows.length) {
     wrap.innerHTML = '<div class="sk-note"><b>No items match</b>Try a different filter or search.</div>';
@@ -473,7 +549,7 @@ function renderInventory() {
   }
 
   wrap.innerHTML =
-    '<table><thead><tr><th>Item</th><th class="r">On hand</th><th class="r">Daily demand</th><th class="r">Days left</th><th class="r">Auto Reorder Pt</th><th>Status</th><th></th></tr></thead><tbody>' +
+    '<table><thead><tr><th>Item</th><th class="r">On hand</th><th class="r">Daily demand</th><th class="r">Days left</th><th class="r">Auto Reorder Pt</th><th class="r">Expiry Risk</th><th>Status</th><th></th></tr></thead><tbody>' +
     rows
       .map(
         ({ it, k }) =>
@@ -482,6 +558,7 @@ function renderInventory() {
           `<td class="r">${it.dailyDemand != null ? `${it.dailyDemand} <span class="unit">${esc(it.unit)}/d</span>` : '<span class="dim">—</span>'}</td>` +
           `<td class="r">${it.daysOfStock != null ? `<b>${it.daysOfStock}</b> d` : '<span class="dim">—</span>'}</td>` +
           `<td class="r"><span class="badge-rop" title="Auto-configured by lead time & demand variance">${it.reorder} ${esc(it.unit)}</span></td>` +
+          `<td class="r">${expiryPill(it)}</td>` +
           `<td>${statusPill(k)}</td><td class="act"><button class="icon-btn" data-add-sku="${esc(it.sku)}" title="Add stock" style="font-size:22px">+</button>` +
           `<button class="icon-btn del" data-del-sku="${esc(it.sku)}" title="Remove item">${ico('trash', 16)}</button></td></tr>`
       )
@@ -952,8 +1029,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const name = $('inv-name').value.trim();
     const qty = Number($('inv-qty').value);
     const unit = $('inv-unit').value.trim();
+    const expiryDate = ($('inv-expiry') && $('inv-expiry').value) ? $('inv-expiry').value : null;
     try {
-      const res = await API.addInventoryItem({ sku, name, qty, unit });
+      const res = await API.addInventoryItem({ sku, name, qty, unit, expiryDate });
       toast(`Item added with auto-configured reorder point: ${res.reorder || 'Auto'}`);
       $('inv-form').reset();
       $('inv-form').style.display = 'none';

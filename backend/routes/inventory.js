@@ -16,15 +16,26 @@ router.get('/', (req, res) => {
 // POST /api/inventory
 router.post('/', (req, res) => {
   try {
-    const { sku, name, qty, unit } = req.body;
+    const { sku, name, qty, unit, expiryDate } = req.body;
     if (!sku || !name) {
       return res.status(400).json({ error: 'SKU and item name are required' });
     }
-    const item = store.addInventoryItem({ sku, name, qty, unit });
+    const item = store.addInventoryItem({ sku, name, qty, unit, expiryDate });
     const enhanced = calculateItemMetrics(item, store.getSales(), store.getSuppliers());
     res.status(201).json(enhanced);
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// PATCH /api/inventory/:sku
+router.patch('/:sku', (req, res) => {
+  try {
+    const updated = store.updateInventoryItem(req.params.sku, req.body);
+    const enhanced = calculateItemMetrics(updated, store.getSales(), store.getSuppliers());
+    res.json(enhanced);
+  } catch (err) {
+    res.status(404).json({ error: err.message });
   }
 });
 
@@ -33,10 +44,8 @@ router.patch('/:sku/stock', (req, res) => {
   try {
     const { delta } = req.body;
     const item = store.updateInventoryStock(req.params.sku, delta);
-    res.json({
-      ...item,
-      status: getItemStatus(item)
-    });
+    const enhanced = calculateItemMetrics(item, store.getSales(), store.getSuppliers());
+    res.json(enhanced);
   } catch (err) {
     res.status(404).json({ error: err.message });
   }

@@ -20,6 +20,7 @@ app.use('/api/profile', require('./routes/profile'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/forecast', require('./routes/forecast'));
 app.use('/api/simulation', require('./routes/simulation'));
+app.use('/api/expiry', require('./routes/expiry'));
 
 // Health check
 app.get('/api/health', (req, res) => {
