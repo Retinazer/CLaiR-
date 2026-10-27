@@ -267,12 +267,16 @@ async function renderForecastChart() {
     }
 
     if (insights) {
-      const sumPred = fc.forecast.predictions.reduce((a, b) => a + b, 0);
-      insights.innerHTML = `
+      if (fc.activeModel === 'NONE') {
+        insights.style.display = 'none';
+      } else {
+        insights.style.display = 'flex';
+        const sumPred = fc.forecast.predictions.reduce((a, b) => a + b, 0);
+        insights.innerHTML = `
         <div class="fi-top">
           <div class="fi-title">
-            <i class="fa-solid fa-brain" style="color:var(--primary)"></i>
-            Adaptive Forecasting Engine: <span>${esc(fc.activeModel)}</span>
+            <i class="fa-solid fa-chart-line" style="color:var(--primary)"></i>
+            <span>${esc(fc.activeModel)}</span>
           </div>
           <span class="threshold-pill">Threshold Switcher</span>
         </div>
@@ -291,6 +295,7 @@ async function renderForecastChart() {
           <div class="fi-metric">Projected Period Demand: <b>${Math.round(sumPred)} units</b></div>
         </div>
       `;
+      }
     }
 
     renderSvgForecast(fc);

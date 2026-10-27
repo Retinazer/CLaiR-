@@ -97,7 +97,7 @@ Open your browser and navigate to:
 
 ---
 
-## Adaptive Forecasting Engine (ETS & SARIMAX)
+## Forecasting Engine (ETS & SARIMAX)
 
 CLaiR features an automated statistical switcher that dynamically toggles algorithms based on the richness of historical observation data:
 
