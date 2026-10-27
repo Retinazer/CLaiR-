@@ -1,5 +1,5 @@
 const store = require('../data/store');
-const { generateForecast, SPARSE_THRESHOLD, RICH_THRESHOLD } = require('./forecastingEngine');
+const { generateForecast, SPARSE_DAILY_THRESHOLD, RICH_DAILY_THRESHOLD } = require('./forecastingEngine');
 
 function getItemStatus(item) {
   if (item.qty <= 0 || item.qty < item.reorder / 2) return 'critical';
@@ -19,36 +19,41 @@ function getOverviewData() {
   const inventory = store.getInventory();
   const sales = store.getSales();
   const profile = store.getProfile();
+  const simulationState = store.getSimulationState ? store.getSimulationState() : { isSimulated: false, currentDate: new Date().toISOString().slice(0, 10), dayOffset: 0 };
 
-  const now = new Date();
-  const hour = now.getHours();
+  const now = new Date(simulationState.currentDate + 'T12:00:00');
+  const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   const counts = getStatusCounts(inventory);
 
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr = simulationState.currentDate;
   const todaySales = sales.filter((s) => s.date === todayStr);
   const todayDemand = todaySales.reduce((acc, s) => acc + (Number(s.qty) || 0), 0);
 
-  // Run dynamic forecasting engine to evaluate active model and threshold
-  const forecastInfo = generateForecast(sales, 7);
+  // Run dynamic forecasting engine to evaluate 2D matrix (Volume + Temporal Cycles)
+  const forecastInfo = generateForecast(sales, { horizon: 7, granularity: 'daily' });
 
   let reliability = 'Awaiting Data';
   let reliabilityClass = '';
-  let reliabilityText = `Need >= ${SPARSE_THRESHOLD} days for ETS`;
+  let reliabilityText = `Need >= ${forecastInfo.thresholds.minSteps} days and >= ${forecastInfo.thresholds.minTransactions} tx`;
 
   if (forecastInfo.activeModel === 'SARIMAX') {
     reliability = 'SARIMAX';
     reliabilityClass = 'green';
-    reliabilityText = `${forecastInfo.thresholds.currentPoints} days · Rich Regime (>=${RICH_THRESHOLD})`;
+    reliabilityText = `${forecastInfo.thresholds.currentSteps} days · ${forecastInfo.dataVolume.totalTransactions} tx (Rich Regime)`;
+  } else if (forecastInfo.activeModel === 'CROSTON') {
+    reliability = 'Croston';
+    reliabilityClass = 'purple';
+    reliabilityText = `${forecastInfo.dataVolume.intermittencyPercent}% zero-demand · Intermittent Demand`;
   } else if (forecastInfo.activeModel === 'ETS') {
     reliability = 'ETS';
     reliabilityClass = 'blue';
-    reliabilityText = `${forecastInfo.thresholds.currentPoints} days · Sparse (need ${forecastInfo.thresholds.pointsNeededForRich} more for SARIMAX)`;
-  } else if (forecastInfo.thresholds.currentPoints > 0) {
+    reliabilityText = `${forecastInfo.thresholds.currentSteps} days · ${forecastInfo.dataVolume.totalTransactions} tx (Sparse/Moderate)`;
+  } else if (forecastInfo.thresholds.currentSteps > 0) {
     reliability = 'Collecting';
     reliabilityClass = '';
-    reliabilityText = `${forecastInfo.thresholds.currentPoints} / ${SPARSE_THRESHOLD} days for ETS`;
+    reliabilityText = `${forecastInfo.thresholds.currentSteps} / ${forecastInfo.thresholds.minSteps} days (${forecastInfo.dataVolume.totalTransactions} tx)`;
   }
 
   const urgentItems = inventory
@@ -64,6 +69,7 @@ function getOverviewData() {
   return {
     greeting: greeting + (profile.name ? `, ${profile.name}` : ''),
     date: todayStr,
+    simulation: simulationState,
     riskCount: counts.critical + counts.low,
     healthyCount: counts.good,
     todayDemand,
@@ -90,13 +96,13 @@ function getRestockRecommendations() {
 
 function getSalesSummary(days = 30) {
   const sales = store.getSales();
-  const end = new Date();
+  const currentDateStr = store.getCurrentDate ? store.getCurrentDate() : new Date().toISOString().slice(0, 10);
+  const end = new Date(currentDateStr + 'T23:59:59.999');
   const start = new Date(end.getTime() - (days - 1) * 864e5);
   start.setHours(0, 0, 0, 0);
-  end.setHours(23, 59, 59, 999);
 
   const inRange = sales.filter((s) => {
-    const d = new Date(s.date);
+    const d = new Date(s.date + 'T12:00:00');
     return !isNaN(d) && d >= start && d <= end;
   });
 

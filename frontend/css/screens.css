@@ -65,6 +65,25 @@
       border-color: rgba(0, 122, 255, 0.3);
     }
 
+    .model-badge.croston {
+      background: rgba(168, 85, 247, 0.12);
+      color: #9333ea;
+      border-color: rgba(168, 85, 247, 0.3);
+    }
+
+    .sim-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #d97706;
+      background: rgba(245, 158, 11, 0.12);
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
     .threshold-pill {
       font-size: 12px;
       color: var(--muted);

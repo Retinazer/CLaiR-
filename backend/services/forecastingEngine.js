@@ -1,21 +1,24 @@
 /**
- * CLaiR — Time Series Forecasting Engine
+ * CLaiR — Multi-Regime Time Series Forecasting Engine
  * 
  * Features:
- * 1. ETS (Error, Trend, Seasonal / Holt-Winters Exponential Smoothing)
- *    - Optimal for Sparse Data Regime (3 <= N < 14 days)
- *    - Low parameter variance, robust state updating without matrix inversion.
- * 2. SARIMAX (Seasonal AutoRegressive Integrated Moving Average with eXogenous features)
- *    - Optimal for Rich Data Regime (N >= 14 days, >= 2 weekly cycles)
- *    - Captures weekly seasonality (s=7), AR/MA dynamics, plus exogenous weekend/day-of-week regressors.
- * 3. Dynamic Threshold Switching:
- *    - N < 3: Insufficient data baseline.
- *    - 3 <= N < 14: ETS (Sparse regime).
- *    - N >= 14: SARIMAX (Rich regime).
+ * 1. 2D Decision Matrix based on BOTH:
+ *    - Temporal Sequence Depth (N observations / cycles)
+ *    - Data Volume & Density (total transactions, quantity volume, intermittency ratio)
+ * 2. Multi-Model Portfolio:
+ *    - Croston's Method (with SBA debiasing) for Intermittent Demand (slow-moving/zero-heavy items)
+ *    - ETS (Holt-Winters Double Exponential Smoothing) for Sparse/Moderate Regimes
+ *    - SARIMAX with Seasonal Lag Differencing & Exogenous Regressors for Rich Regimes
+ *    - Baseline Average for Insufficient Initial Volume
+ * 3. Granularity Support:
+ *    - Daily: Weekly seasonality (s=7), weekend & day-of-week exogenous regressors
+ *    - Hourly: Daily seasonality (s=24), business/peak hour exogenous regressors
  */
 
-const SPARSE_THRESHOLD = 3;
-const RICH_THRESHOLD = 14;
+const SPARSE_DAILY_THRESHOLD = 3;
+const RICH_DAILY_THRESHOLD = 14;
+const SPARSE_HOURLY_THRESHOLD = 8;
+const RICH_HOURLY_THRESHOLD = 48;
 
 // Helper: Matrix transpose
 function transpose(A) {
@@ -89,7 +92,89 @@ function fitOLS(X, Y) {
 }
 
 /**
- * ETS (Exponential Smoothing / Holt-Winters state space)
+ * 1. Croston's Method with Syntetos-Boylan Approximation (SBA)
+ * Optimal for intermittent demand with frequent zero-sales periods.
+ * Separates smoothed non-zero demand size (z) from inter-arrival intervals (p).
+ */
+function runCroston(series, horizon = 7, alpha = 0.2) {
+  const n = series.length;
+  const firstNonZero = series.findIndex((v) => v > 0);
+  if (firstNonZero === -1) {
+    return {
+      name: 'Croston',
+      type: "Croston's Intermittent (SBA)",
+      predictions: Array.from({ length: horizon }, () => 0),
+      lower: Array.from({ length: horizon }, () => 0),
+      upper: Array.from({ length: horizon }, () => 0),
+      fitted: series.slice(),
+      params: { alpha, demandSize: 0, interval: 1 },
+      mae: 0,
+      rmse: 0
+    };
+  }
+
+  let z = series[firstNonZero]; // Smoothed demand size
+  let p = 1.0;                  // Smoothed interval
+  let q = 1;                    // Elapsed periods since last positive sale
+
+  const fitted = [];
+  const residuals = [];
+
+  for (let i = 0; i < n; i++) {
+    const yHat = p > 0 ? (1 - alpha / 2) * (z / p) : 0;
+    fitted.push(Math.max(0, yHat));
+    residuals.push(series[i] - yHat);
+
+    if (series[i] > 0) {
+      z = alpha * series[i] + (1 - alpha) * z;
+      p = alpha * q + (1 - alpha) * p;
+      q = 1;
+    } else {
+      q += 1;
+    }
+  }
+
+  // Syntetos-Boylan debiased forecast rate
+  const rate = Math.max(0, (1 - alpha / 2) * (z / Math.max(1, p)));
+  const validRes = residuals.slice(firstNonZero);
+  const variance = validRes.reduce((acc, r) => acc + r * r, 0) / Math.max(1, validRes.length);
+  const sigma = Math.sqrt(variance);
+
+  const predictions = [];
+  const lower = [];
+  const upper = [];
+
+  for (let h = 1; h <= horizon; h++) {
+    const se = sigma * Math.sqrt(1 + 0.1 * h);
+    predictions.push(Number(rate.toFixed(1)));
+    lower.push(Number(Math.max(0, rate - 1.96 * se).toFixed(1)));
+    upper.push(Number((rate + 1.96 * se).toFixed(1)));
+  }
+
+  const absErrors = validRes.map((r) => Math.abs(r));
+  const mae = absErrors.reduce((a, b) => a + b, 0) / Math.max(1, absErrors.length);
+
+  return {
+    name: 'Croston',
+    type: "Croston's Intermittent Method (SBA)",
+    predictions,
+    lower,
+    upper,
+    fitted,
+    params: {
+      alpha,
+      demandSize: Number(z.toFixed(2)),
+      interval: Number(p.toFixed(2)),
+      debiasedRate: Number(rate.toFixed(2))
+    },
+    mae: Number(mae.toFixed(2)),
+    rmse: Number(sigma.toFixed(2))
+  };
+}
+
+/**
+ * 2. ETS (Exponential Smoothing / Holt-Winters state space)
+ * Optimal for Sparse/Moderate continuous data without full seasonal cycle depth.
  */
 function runETS(series, horizon = 7) {
   const n = series.length;
@@ -97,6 +182,7 @@ function runETS(series, horizon = 7) {
     const val = series[0] || 0;
     return {
       name: 'ETS',
+      type: 'Exponential Smoothing (Holt)',
       predictions: Array.from({ length: horizon }, () => val),
       lower: Array.from({ length: horizon }, () => Math.max(0, val * 0.8)),
       upper: Array.from({ length: horizon }, () => val * 1.2),
@@ -136,7 +222,6 @@ function runETS(series, horizon = 7) {
     });
   });
 
-  // Fit with optimal parameters
   const { alpha, beta } = bestParams;
   let l = series[0];
   let t = (series[1] - series[0]) || 0;
@@ -152,12 +237,10 @@ function runETS(series, horizon = 7) {
     t = beta * (l - prevL) + (1 - beta) * t;
   }
 
-  // Calculate residual variance
   const validRes = residuals.slice(1);
   const variance = validRes.reduce((acc, r) => acc + r * r, 0) / Math.max(1, validRes.length);
   const sigma = Math.sqrt(variance);
 
-  // Generate multi-step forecasts with expanding confidence bands
   const predictions = [];
   const lower = [];
   const upper = [];
@@ -172,43 +255,49 @@ function runETS(series, horizon = 7) {
 
   const absErrors = validRes.map((r) => Math.abs(r));
   const mae = absErrors.reduce((a, b) => a + b, 0) / Math.max(1, absErrors.length);
-  const rmse = sigma;
 
   return {
     name: 'ETS',
-    type: 'Exponential Smoothing (Holt)',
+    type: 'Exponential Smoothing (Holt-Winters)',
     predictions,
     lower,
     upper,
     fitted,
     params: bestParams,
     mae: Number(mae.toFixed(2)),
-    rmse: Number(rmse.toFixed(2))
+    rmse: Number(sigma.toFixed(2))
   };
 }
 
 /**
- * SARIMAX (Seasonal AutoRegressive Integrated Moving Average with Exogenous Regressors)
- * Order: (1, 1, 1) x (1, 1, 0)_7 + Day-of-Week/Weekend Exogenous Features
+ * 3. SARIMAX (Seasonal AutoRegressive Integrated Moving Average with Exogenous Regressors)
+ * Order: (1, 1, 1) x (1, 1, 0)_s + Exogenous Features
+ * Daily: s = 7 with Weekend/DOW features
+ * Hourly: s = 24 with Peak Operating Hour features
  */
-function runSARIMAX(series, dates, horizon = 7) {
+function runSARIMAX(series, dates, horizon = 7, granularity = 'daily') {
   const n = series.length;
-  const s = 7; // Weekly seasonality
+  const s = granularity === 'hourly' ? 24 : 7;
+  const minRequired = granularity === 'hourly' ? RICH_HOURLY_THRESHOLD : RICH_DAILY_THRESHOLD;
 
-  if (n < RICH_THRESHOLD) {
+  if (n < minRequired) {
     return runETS(series, horizon);
   }
 
   // 1. Build Exogenous Feature Matrix X
-  // Column 0: Bias (1.0)
-  // Column 1: Weekend binary flag (1 if Sat/Sun, else 0)
-  // Column 2: Sinusoidal day-of-week feature sin(2*pi*dow/7)
   const X = dates.map((dStr) => {
     const d = new Date(dStr);
-    const dow = d.getDay();
-    const isWeekend = (dow === 0 || dow === 6) ? 1 : 0;
-    const sinDow = Math.sin((2 * Math.PI * dow) / 7);
-    return [1.0, isWeekend, sinDow];
+    if (granularity === 'hourly') {
+      const hr = isNaN(d.getHours()) ? 12 : d.getHours();
+      const isPeak = (hr >= 11 && hr <= 14) || (hr >= 17 && hr <= 20) ? 1 : 0;
+      const sinHr = Math.sin((2 * Math.PI * hr) / 24);
+      return [1.0, isPeak, sinHr];
+    } else {
+      const dow = isNaN(d.getDay()) ? 0 : d.getDay();
+      const isWeekend = (dow === 0 || dow === 6) ? 1 : 0;
+      const sinDow = Math.sin((2 * Math.PI * dow) / 7);
+      return [1.0, isWeekend, sinDow];
+    }
   });
 
   // 2. Fit Exogenous coefficients beta via OLS
@@ -220,14 +309,12 @@ function runSARIMAX(series, dates, horizon = 7) {
     return y - xHat;
   });
 
-  // 4. Differencing: Seasonal (s=7) and Non-seasonal (d=1)
-  // z_t = y_detrended[t] - y_detrended[t - s]
+  // 4. Differencing: Seasonal (s) and Non-seasonal (d=1)
   const diffSeason = [];
   for (let i = s; i < n; i++) {
     diffSeason.push(detrended[i] - detrended[i - s]);
   }
 
-  // w_t = z_t - z_{t-1}
   const diffStationary = [];
   for (let i = 1; i < diffSeason.length; i++) {
     diffStationary.push(diffSeason[i] - diffSeason[i - 1]);
@@ -235,8 +322,8 @@ function runSARIMAX(series, dates, horizon = 7) {
 
   // 5. Fit AR(1) and MA(1) on stationary series w_t
   const m = diffStationary.length;
-  let phi = 0.25; // default autoregressive factor
-  let theta = 0.15; // default moving average factor
+  let phi = 0.25;
+  let theta = 0.15;
 
   if (m >= 4) {
     let num = 0, den = 0;
@@ -249,7 +336,6 @@ function runSARIMAX(series, dates, horizon = 7) {
     }
   }
 
-  // Calculate innovation residuals
   const residuals = [0];
   for (let i = 1; i < m; i++) {
     const wPred = phi * diffStationary[i - 1] + theta * (residuals[i - 1] || 0);
@@ -261,16 +347,24 @@ function runSARIMAX(series, dates, horizon = 7) {
 
   // 6. Multi-step forecasting into horizon
   const lastDate = new Date(dates[dates.length - 1]);
+  const stepMs = granularity === 'hourly' ? 3600 * 1000 : 864e5;
   const futureX = [];
+
   for (let h = 1; h <= horizon; h++) {
-    const fDate = new Date(lastDate.getTime() + h * 864e5);
-    const dow = fDate.getDay();
-    const isWeekend = (dow === 0 || dow === 6) ? 1 : 0;
-    const sinDow = Math.sin((2 * Math.PI * dow) / 7);
-    futureX.push([1.0, isWeekend, sinDow]);
+    const fDate = new Date(lastDate.getTime() + h * stepMs);
+    if (granularity === 'hourly') {
+      const hr = fDate.getHours();
+      const isPeak = (hr >= 11 && hr <= 14) || (hr >= 17 && hr <= 20) ? 1 : 0;
+      const sinHr = Math.sin((2 * Math.PI * hr) / 24);
+      futureX.push([1.0, isPeak, sinHr]);
+    } else {
+      const dow = fDate.getDay();
+      const isWeekend = (dow === 0 || dow === 6) ? 1 : 0;
+      const sinDow = Math.sin((2 * Math.PI * dow) / 7);
+      futureX.push([1.0, isWeekend, sinDow]);
+    }
   }
 
-  // Invert differencing recursively
   const predictions = [];
   const lower = [];
   const upper = [];
@@ -278,22 +372,18 @@ function runSARIMAX(series, dates, horizon = 7) {
 
   for (let h = 0; h < horizon; h++) {
     const idx = n + h;
-    // Seasonal lag from 7 days ago
     const sLag = extendedDetrended[idx - s] !== undefined ? extendedDetrended[idx - s] : extendedDetrended[extendedDetrended.length - 1];
     const sLagPrev = extendedDetrended[idx - s - 1] !== undefined ? extendedDetrended[idx - s - 1] : sLag;
     const prevVal = extendedDetrended[idx - 1];
 
-    // ARMA projection
     const wHat = phi * (idx - 1 >= 0 ? 0.2 * diffStationary[diffStationary.length - 1] : 0);
     const zHat = (prevVal - sLagPrev) + wHat;
     const nextDetrended = sLag + zHat;
     extendedDetrended.push(nextDetrended);
 
-    // Re-introduce exogenous effect
     const exogEffect = futureX[h][0] * beta[0] + futureX[h][1] * beta[1] + futureX[h][2] * beta[2];
     const pointForecast = Math.max(0, nextDetrended + exogEffect);
 
-    // Standard error growth
     const se = Math.sqrt(sigmaInnov * sigmaInnov * (1 + 0.3 * h) + 1.2);
     predictions.push(Number(pointForecast.toFixed(1)));
     lower.push(Number(Math.max(0, pointForecast - 1.96 * se).toFixed(1)));
@@ -305,15 +395,15 @@ function runSARIMAX(series, dates, horizon = 7) {
 
   return {
     name: 'SARIMAX',
-    type: 'SARIMAX(1,1,1)(1,1,0)[7] + Exog(Weekend, DOW)',
+    type: `SARIMAX(1,1,1)(1,1,0)[${s}] + Exog(${granularity === 'hourly' ? 'PeakHours' : 'Weekend,DOW'})`,
     predictions,
     lower,
     upper,
     params: {
-      order: '(1,1,1)x(1,1,0)[7]',
+      order: `(1,1,1)x(1,1,0)[${s}]`,
       phi: Number(phi.toFixed(3)),
       theta: Number(theta.toFixed(3)),
-      betaWeekend: Number(beta[1].toFixed(2))
+      betaExog: Number(beta[1].toFixed(2))
     },
     mae: Number(mae.toFixed(2)),
     rmse: Number(sigmaInnov.toFixed(2))
@@ -322,101 +412,169 @@ function runSARIMAX(series, dates, horizon = 7) {
 
 /**
  * Main Dynamic Switcher Engine
+ * Implements 2D Threshold Matrix:
+ * - Temporal Depth (time steps N)
+ * - Data Volume & Density (total transactions, quantity, intermittency)
  */
-function generateForecast(salesList = [], horizon = 7) {
-  // Aggregate sales chronologically by date
-  const salesByDate = {};
+function generateForecast(salesList = [], options = 7) {
+  const horizon = typeof options === 'object' && options.horizon ? Number(options.horizon) : (typeof options === 'number' ? options : 7);
+  const granularity = typeof options === 'object' && options.granularity === 'hourly' ? 'hourly' : 'daily';
+
+  // 1. Calculate Data Volume Metrics
+  const totalTransactions = salesList.length;
+  const totalQuantity = salesList.reduce((sum, s) => sum + (Number(s.qty) || 0), 0);
+
+  // 2. Aggregate timeline according to granularity
+  const buckets = {};
   salesList.forEach((s) => {
     if (!s.date) return;
-    const d = s.date.slice(0, 10);
-    salesByDate[d] = (salesByDate[d] || 0) + (Number(s.qty) || 0);
+    const dStr = s.date.slice(0, 10);
+    const key = granularity === 'hourly' && s.time ? `${dStr}T${s.time.slice(0, 2)}:00` : dStr;
+    buckets[key] = (buckets[key] || 0) + (Number(s.qty) || 0);
   });
 
-  const sortedDates = Object.keys(salesByDate).sort();
-  const today = new Date();
-
-  const distinctDays = sortedDates.length;
+  const sortedKeys = Object.keys(buckets).sort();
   let timelineDates = [];
   let timelineValues = [];
 
-  if (distinctDays > 0) {
-    const start = new Date(sortedDates[0]);
-    const end = new Date(sortedDates[sortedDates.length - 1]);
-    const curr = new Date(start);
-    while (curr <= end) {
-      const dStr = curr.toISOString().slice(0, 10);
-      timelineDates.push(dStr);
-      timelineValues.push(salesByDate[dStr] || 0);
-      curr.setDate(curr.getDate() + 1);
+  if (sortedKeys.length > 0) {
+    if (granularity === 'hourly') {
+      // Build continuous hourly timeline between first and last timestamp
+      const start = new Date(sortedKeys[0].includes('T') ? sortedKeys[0] : `${sortedKeys[0]}T00:00:00`);
+      const end = new Date(sortedKeys[sortedKeys.length - 1].includes('T') ? sortedKeys[sortedKeys.length - 1] : `${sortedKeys[sortedKeys.length - 1]}T23:00:00`);
+      const curr = new Date(start);
+      while (curr <= end) {
+        const k = curr.toISOString().slice(0, 13) + ':00';
+        timelineDates.push(k);
+        timelineValues.push(buckets[k] || 0);
+        curr.setHours(curr.getHours() + 1);
+      }
+    } else {
+      // Build continuous daily timeline
+      const start = new Date(sortedKeys[0].slice(0, 10));
+      const end = new Date(sortedKeys[sortedKeys.length - 1].slice(0, 10));
+      const curr = new Date(start);
+      while (curr <= end) {
+        const dStr = curr.toISOString().slice(0, 10);
+        timelineDates.push(dStr);
+        timelineValues.push(buckets[dStr] || 0);
+        curr.setDate(curr.getDate() + 1);
+      }
     }
   }
 
-  // Threshold Decision Logic based on available data richness
-  const effectivePoints = Math.max(distinctDays, timelineValues.length);
+  const timeSteps = timelineValues.length;
+  const activePeriods = timelineValues.filter((v) => v > 0).length;
+  const zeroCount = timeSteps - activePeriods;
+  const zeroRatio = timeSteps > 0 ? zeroCount / timeSteps : 0;
+  const intermittencyPercent = Math.round(zeroRatio * 100);
+
+  // 3. Define 2D Threshold Boundaries
+  const minSteps = granularity === 'hourly' ? SPARSE_HOURLY_THRESHOLD : SPARSE_DAILY_THRESHOLD;
+  const richSteps = granularity === 'hourly' ? RICH_HOURLY_THRESHOLD : RICH_DAILY_THRESHOLD;
+  const minTransactions = granularity === 'hourly' ? 12 : 3;
+  const richTransactions = granularity === 'hourly' ? 36 : 14;
+
   let activeModel = 'NONE';
   let regime = 'insufficient';
   let rationale = '';
 
-  if (distinctDays < SPARSE_THRESHOLD) {
+  // 4. 2D Decision Matrix Evaluation
+  if (totalTransactions < minTransactions || timeSteps < minSteps) {
     regime = 'insufficient';
     activeModel = 'NONE';
-    rationale = `Sparse data (${distinctDays} recorded day${distinctDays === 1 ? '' : 's'}). Need at least ${SPARSE_THRESHOLD} days of history to engage ETS smoothing.`;
-  } else if (distinctDays < RICH_THRESHOLD) {
-    regime = 'sparse';
-    activeModel = 'ETS';
-    rationale = `Sparse Data Regime (${distinctDays} active days, < ${RICH_THRESHOLD}). ETS (Holt-Winters) active to prevent ARMA over-parameterization on short sequences.`;
-  } else {
+    rationale = `Insufficient Data Volume: ${totalTransactions} transactions across ${timeSteps} ${granularity === 'hourly' ? 'hours' : 'days'}. Need >= ${minTransactions} transactions and >= ${minSteps} time steps.`;
+  } else if (zeroRatio >= 0.40 && timeSteps >= 4) {
+    // Intermittent Demand Regime: high zeros, sporadic order arrivals
+    regime = 'intermittent';
+    activeModel = 'CROSTON';
+    rationale = `Intermittent Demand Regime (${intermittencyPercent}% zero-demand intervals, ${totalTransactions} tx). Croston's method active to isolate transaction arrival intervals from order magnitude.`;
+  } else if (timeSteps >= richSteps && totalTransactions >= richTransactions) {
+    // Rich Data & Volume Regime: >= 2 seasonal cycles AND sufficient transaction volume
     regime = 'rich';
     activeModel = 'SARIMAX';
-    rationale = `Rich Data Regime (${distinctDays} active days, >= ${RICH_THRESHOLD}). SARIMAX active with weekly seasonality (s=7) and weekend exogenous regressors.`;
+    rationale = `Rich Data & High Volume Regime (${timeSteps} ${granularity === 'hourly' ? 'hours' : 'days'}, ${totalTransactions} tx). SARIMAX active with seasonal differencing (s=${granularity === 'hourly' ? 24 : 7}) and exogenous regressors.`;
+  } else {
+    // Sparse/Moderate Regime: continuous sales without full 2 cycles, or moderate volume
+    regime = 'sparse';
+    activeModel = 'ETS';
+    rationale = `Sparse/Moderate Regime (${timeSteps} ${granularity === 'hourly' ? 'hours' : 'days'}, ${totalTransactions} tx). ETS (Holt-Winters) active for robust exponential state tracking.`;
   }
 
-  // Model evaluations
+  // 5. Model Execution
+  let crostonResult = null;
   let etsResult = null;
   let sarimaxResult = null;
   let chosenResult = null;
 
-  if (timelineValues.length >= SPARSE_THRESHOLD) {
+  if (timelineValues.length >= 4) {
+    crostonResult = runCroston(timelineValues, horizon);
+  }
+  if (timelineValues.length >= minSteps) {
     etsResult = runETS(timelineValues, horizon);
   }
-  if (timelineValues.length >= RICH_THRESHOLD) {
-    sarimaxResult = runSARIMAX(timelineValues, timelineDates, horizon);
+  if (timelineValues.length >= richSteps && totalTransactions >= richTransactions) {
+    sarimaxResult = runSARIMAX(timelineValues, timelineDates, horizon, granularity);
   }
 
   if (activeModel === 'SARIMAX' && sarimaxResult) {
     chosenResult = sarimaxResult;
+  } else if (activeModel === 'CROSTON' && crostonResult) {
+    chosenResult = crostonResult;
   } else if (activeModel === 'ETS' && etsResult) {
     chosenResult = etsResult;
   } else {
-    // Fallback baseline when insufficient
+    const meanVal = timeSteps > 0 ? Number((totalQuantity / timeSteps).toFixed(1)) : 0;
     chosenResult = {
       name: 'Baseline',
-      predictions: Array.from({ length: horizon }, () => 0),
-      lower: Array.from({ length: horizon }, () => 0),
-      upper: Array.from({ length: horizon }, () => 0),
+      type: 'Historical Mean Baseline',
+      predictions: Array.from({ length: horizon }, () => meanVal),
+      lower: Array.from({ length: horizon }, () => Math.max(0, meanVal * 0.7)),
+      upper: Array.from({ length: horizon }, () => meanVal * 1.3),
       mae: 0,
       rmse: 0
     };
   }
 
-  // Build future dates array
-  const lastKnownDate = timelineDates.length > 0 ? new Date(timelineDates[timelineDates.length - 1]) : today;
+  // 6. Build Future Forecast Dates
+  const lastKnownKey = timelineDates.length > 0 ? timelineDates[timelineDates.length - 1] : new Date().toISOString();
+  const lastKnownDate = new Date(lastKnownKey.includes('T') ? lastKnownKey : `${lastKnownKey}T00:00:00`);
+  const stepMs = granularity === 'hourly' ? 3600 * 1000 : 864e5;
   const forecastDates = [];
+
   for (let h = 1; h <= horizon; h++) {
-    const fd = new Date(lastKnownDate.getTime() + h * 864e5);
-    forecastDates.push(fd.toISOString().slice(0, 10));
+    const fd = new Date(lastKnownDate.getTime() + h * stepMs);
+    if (granularity === 'hourly') {
+      forecastDates.push(fd.toISOString().slice(0, 13) + ':00');
+    } else {
+      forecastDates.push(fd.toISOString().slice(0, 10));
+    }
   }
 
   return {
     activeModel,
     regime,
     rationale,
+    granularity,
+    dataVolume: {
+      totalTransactions,
+      totalQuantity,
+      timeSteps,
+      activePeriods,
+      zeroCount,
+      zeroRatio: Number(zeroRatio.toFixed(3)),
+      intermittencyPercent
+    },
     thresholds: {
-      sparseThreshold: SPARSE_THRESHOLD,
-      richThreshold: RICH_THRESHOLD,
-      currentPoints: distinctDays,
-      pointsNeededForRich: Math.max(0, RICH_THRESHOLD - distinctDays),
-      progressPercent: Math.min(100, Math.round((distinctDays / RICH_THRESHOLD) * 100))
+      minSteps,
+      richSteps,
+      minTransactions,
+      richTransactions,
+      currentSteps: timeSteps,
+      currentTransactions: totalTransactions,
+      stepsNeededForRich: Math.max(0, richSteps - timeSteps),
+      txNeededForRich: Math.max(0, richTransactions - totalTransactions),
+      progressPercent: Math.min(100, Math.round(((timeSteps / richSteps) * 0.6 + (totalTransactions / richTransactions) * 0.4) * 100))
     },
     timeline: {
       dates: timelineDates,
@@ -434,6 +592,7 @@ function generateForecast(salesList = [], horizon = 7) {
       modelDetails: chosenResult.type || chosenResult.name
     },
     modelsCompared: {
+      croston: crostonResult,
       ets: etsResult,
       sarimax: sarimaxResult
     }
@@ -441,8 +600,11 @@ function generateForecast(salesList = [], horizon = 7) {
 }
 
 module.exports = {
-  SPARSE_THRESHOLD,
-  RICH_THRESHOLD,
+  SPARSE_DAILY_THRESHOLD,
+  RICH_DAILY_THRESHOLD,
+  SPARSE_HOURLY_THRESHOLD,
+  RICH_HOURLY_THRESHOLD,
+  runCroston,
   runETS,
   runSARIMAX,
   generateForecast

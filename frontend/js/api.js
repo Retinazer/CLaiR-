@@ -32,8 +32,26 @@ const API = {
     return this.request('/api/overview');
   },
 
-  getForecast(range = '1w') {
-    return this.request(`/api/forecast?range=${encodeURIComponent(range)}`);
+  getForecast(range = '1w', granularity = 'daily') {
+    return this.request(`/api/forecast?range=${encodeURIComponent(range)}&granularity=${encodeURIComponent(granularity)}`);
+  },
+
+  // Simulation Clock & Day Progression
+  getSimulation() {
+    return this.request('/api/simulation');
+  },
+
+  advanceDay(simulateSales = true, days = 1) {
+    return this.request('/api/simulation/advance', {
+      method: 'POST',
+      body: JSON.stringify({ simulateSales, days })
+    });
+  },
+
+  resetSimulation() {
+    return this.request('/api/simulation/reset', {
+      method: 'POST'
+    });
   },
 
   // Inventory

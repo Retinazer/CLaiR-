@@ -9,6 +9,7 @@ let salesData = { transactions: [], txCount: 0, unitsSold: 0, revenue: 0, topPro
 let profile = { name: '', business: '', role: 'Owner', locale: 'English', currency: 'IDR' };
 let userPos = null; // { lat, lng }
 let fcRange = '1d';
+let fcGranularity = 'daily';
 let invFilter = 'all';
 let invQuery = '';
 let histDays = 30;
@@ -234,7 +235,7 @@ function renderSvgForecast(fc) {
 
 async function renderForecastChart() {
   try {
-    const fc = await API.getForecast(fcRange);
+    const fc = await API.getForecast(fcRange, fcGranularity);
     if (!fc) return;
 
     // Update Model Badge
@@ -247,6 +248,9 @@ async function renderForecastChart() {
       if (fc.activeModel === 'SARIMAX') {
         badge.classList.add('sarimax');
         badge.innerHTML = '<i class="fa-solid fa-chart-line"></i> SARIMAX Active';
+      } else if (fc.activeModel === 'CROSTON') {
+        badge.classList.add('croston');
+        badge.innerHTML = '<i class="fa-solid fa-calculator"></i> Croston Active';
       } else if (fc.activeModel === 'ETS') {
         badge.classList.add('ets');
         badge.innerHTML = '<i class="fa-solid fa-chart-simple"></i> ETS Active';
@@ -256,12 +260,15 @@ async function renderForecastChart() {
     }
 
     if (pill) {
+      const stepUnit = fc.granularity === 'hourly' ? 'hrs' : 'days';
       if (fc.activeModel === 'SARIMAX') {
-        pill.textContent = `${fc.thresholds.currentPoints} days recorded (Rich Data >= ${fc.thresholds.richThreshold})`;
+        pill.textContent = `${fc.thresholds.currentSteps} ${stepUnit} · ${fc.dataVolume.totalTransactions} tx (Rich Regime)`;
+      } else if (fc.activeModel === 'CROSTON') {
+        pill.textContent = `${fc.dataVolume.intermittencyPercent}% zero-demand (${fc.dataVolume.totalTransactions} tx · Intermittent)`;
       } else if (fc.activeModel === 'ETS') {
-        pill.textContent = `${fc.thresholds.currentPoints} days recorded (${fc.thresholds.pointsNeededForRich} more for SARIMAX)`;
+        pill.textContent = `${fc.thresholds.currentSteps} ${stepUnit} · ${fc.dataVolume.totalTransactions} tx (Sparse/Moderate)`;
       } else {
-        pill.textContent = `${fc.thresholds.currentPoints} / ${fc.thresholds.sparseThreshold} days recorded for ETS`;
+        pill.textContent = `${fc.thresholds.currentSteps} / ${fc.thresholds.minSteps} ${stepUnit} (${fc.dataVolume.totalTransactions} tx)`;
       }
     }
 
@@ -271,25 +278,28 @@ async function renderForecastChart() {
       } else {
         insights.style.display = 'flex';
         const sumPred = fc.forecast.predictions.reduce((a, b) => a + b, 0);
+        const stepUnit = fc.granularity === 'hourly' ? 'hours' : 'days';
         insights.innerHTML = `
         <div class="fi-top">
           <div class="fi-title">
             <i class="fa-solid fa-chart-line" style="color:var(--primary)"></i>
-            <span>${esc(fc.activeModel)}</span>
+            <span>${esc(fc.activeModel)} (${esc(fc.granularity.toUpperCase())})</span>
           </div>
-          <span class="threshold-pill">Threshold Switcher</span>
+          <span class="threshold-pill">2D Volume &amp; Temporal Cycles Matrix</span>
         </div>
         <div class="fi-desc">${esc(fc.rationale)}</div>
         <div class="threshold-bar">
           <div class="threshold-progress" style="width: ${fc.thresholds.progressPercent}%"></div>
         </div>
         <div class="threshold-markers">
-          <span>0 days</span>
-          <span>Threshold 1: 3 days (ETS)</span>
-          <span>Threshold 2: 14 days (SARIMAX)</span>
+          <span>0 (Start)</span>
+          <span>Threshold 1: ${fc.thresholds.minSteps} ${stepUnit} (ETS)</span>
+          <span>Threshold 2: ${fc.thresholds.richSteps} ${stepUnit} &amp; ${fc.thresholds.richTransactions} tx (SARIMAX)</span>
         </div>
         <div class="fi-metrics">
           <div class="fi-metric">Active Model: <b>${esc(fc.metrics.modelDetails || fc.activeModel)}</b></div>
+          <div class="fi-metric">Data Volume: <b>${fc.dataVolume.totalTransactions} tx (${fc.dataVolume.totalQuantity} units)</b></div>
+          <div class="fi-metric">Demand Density: <b>${100 - fc.dataVolume.intermittencyPercent}% active (${fc.dataVolume.intermittencyPercent}% zeros)</b></div>
           <div class="fi-metric">Mean Absolute Error (MAE): <b>${fc.metrics.mae}</b></div>
           <div class="fi-metric">Projected Period Demand: <b>${Math.round(sumPred)} units</b></div>
         </div>
@@ -304,13 +314,22 @@ async function renderForecastChart() {
 }
 
 async function renderOverview() {
-  const now = new Date();
   await renderForecastChart();
 
   try {
     const ov = await API.getOverview();
     $('ov-greet').textContent = ov.greeting;
-    $('ov-date').textContent = fmtToday(now);
+
+    if (ov.simulation && ov.simulation.isSimulated) {
+      if ($('sim-badge')) $('sim-badge').style.display = 'inline-flex';
+      if ($('sim-reset-btn')) $('sim-reset-btn').style.display = 'inline-flex';
+      $('ov-date').textContent = fmtToday(new Date(ov.simulation.currentDate + 'T12:00:00'));
+    } else {
+      if ($('sim-badge')) $('sim-badge').style.display = 'none';
+      if ($('sim-reset-btn')) $('sim-reset-btn').style.display = 'none';
+      $('ov-date').textContent = fmtToday(new Date());
+    }
+
     $('ov-risk').textContent = ov.riskCount;
     $('ov-good').textContent = ov.healthyCount;
 
@@ -786,6 +805,53 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
   });
+
+  // Granularity selector
+  const granSeg = $('granularity-seg');
+  if (granSeg) {
+    granSeg.querySelectorAll('button').forEach((b) => {
+      b.onclick = async () => {
+        granSeg.querySelectorAll('button').forEach((x) => x.classList.remove('on'));
+        b.classList.add('on');
+        fcGranularity = b.dataset.gran || 'daily';
+        await renderForecastChart();
+      };
+    });
+  }
+
+  // Simulation controls
+  const simAdvBtn = $('sim-advance-btn');
+  if (simAdvBtn) {
+    simAdvBtn.onclick = async () => {
+      simAdvBtn.disabled = true;
+      try {
+        const res = await API.advanceDay(true, 1);
+        const count = res.generatedSales ? res.generatedSales.length : 0;
+        toast(`Advanced to ${res.currentDate}! ${count} sales simulated.`);
+        await Promise.all([syncSales(), syncInventory(), renderOverview()]);
+      } catch (err) {
+        toast('Error advancing day: ' + err.message);
+      } finally {
+        simAdvBtn.disabled = false;
+      }
+    };
+  }
+
+  const simResetBtn = $('sim-reset-btn');
+  if (simResetBtn) {
+    simResetBtn.onclick = async () => {
+      simResetBtn.disabled = true;
+      try {
+        await API.resetSimulation();
+        toast('Reset calendar back to real-time.');
+        await Promise.all([syncSales(), syncInventory(), renderOverview()]);
+      } catch (err) {
+        toast('Error resetting calendar: ' + err.message);
+      } finally {
+        simResetBtn.disabled = false;
+      }
+    };
+  }
 
   // Inline forms
   $('hist-new').onclick = () => {

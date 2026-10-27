@@ -261,7 +261,16 @@
           <h1 id="ov-greet">Good morning</h1>
           <p>Here's what needs your attention today.</p>
         </div>
-        <div class="date-pill" id="ov-date"></div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span class="sim-badge" id="sim-badge" style="display:none;"><i class="fa-solid fa-clock-rotate-left"></i> Simulated Day</span>
+          <div class="date-pill" id="ov-date"></div>
+          <button class="btn btn-secondary" id="sim-advance-btn" style="display:flex; align-items:center; gap:6px; font-size:12px; padding:6px 12px; cursor:pointer;" title="Advance business calendar by 1 day and simulate sales">
+            <i class="fa-solid fa-forward-step"></i> Next Day (+1d)
+          </button>
+          <button class="btn btn-secondary" id="sim-reset-btn" style="display:none; font-size:12px; padding:6px 10px; cursor:pointer;" title="Reset calendar back to real-time">
+            <i class="fa-solid fa-rotate-left"></i>
+          </button>
+        </div>
       </div>
       <div class="stat-grid">
         <div class="sc"><span class="chip red" data-ico="alert-circle"></span>
@@ -299,8 +308,14 @@
           <div class="ptitle"><span class="chip " data-ico="chart-line"></span>
             <h2>Demand forecast</h2>
           </div>
-          <div class="seg" data-seg><button class="on" data-range="1d">1d</button><button
-              data-range="1w">1w</button><button data-range="1m">1m</button></div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div class="seg" id="granularity-seg">
+              <button class="on" data-gran="daily" style="font-size:11px; padding:4px 9px;">Daily (7d cycle)</button>
+              <button data-gran="hourly" style="font-size:11px; padding:4px 9px;">Hourly (24h cycle)</button>
+            </div>
+            <div class="seg" data-seg><button class="on" data-range="1d">1d</button><button
+                data-range="1w">1w</button><button data-range="1m">1m</button></div>
+          </div>
         </div>
         <div class="legend-row">
           <div class="lg">

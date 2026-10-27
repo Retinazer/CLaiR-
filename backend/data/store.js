@@ -13,6 +13,10 @@ const DEFAULT_STATE = {
     role: 'Owner',
     locale: 'English',
     currency: 'IDR'
+  },
+  simulation: {
+    currentDate: null,
+    dayOffset: 0
   }
 };
 
@@ -96,7 +100,7 @@ module.exports = {
     const r = Number(rev) || 0;
     const saleRecord = {
       id: Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
-      date: date || new Date().toISOString().slice(0, 10),
+      date: date || (state.simulation && state.simulation.currentDate ? state.simulation.currentDate : new Date().toISOString().slice(0, 10)),
       item: String(item).trim(),
       qty: q,
       rev: r
@@ -181,5 +185,82 @@ module.exports = {
     };
     saveStore();
     return state.profile;
+  },
+
+  getCurrentDate: () => {
+    if (state.simulation && state.simulation.currentDate) {
+      return state.simulation.currentDate;
+    }
+    return new Date().toISOString().slice(0, 10);
+  },
+
+  getSimulationState: () => {
+    const isSimulated = !!(state.simulation && state.simulation.currentDate);
+    const currentDate = isSimulated ? state.simulation.currentDate : new Date().toISOString().slice(0, 10);
+    return {
+      isSimulated,
+      currentDate,
+      dayOffset: state.simulation ? state.simulation.dayOffset || 0 : 0
+    };
+  },
+
+  advanceSimulationDay: ({ simulateSales = true, days = 1 } = {}) => {
+    let currDateStr = state.simulation && state.simulation.currentDate
+      ? state.simulation.currentDate
+      : new Date().toISOString().slice(0, 10);
+
+    const curr = new Date(currDateStr);
+    curr.setDate(curr.getDate() + Number(days || 1));
+    const nextDateStr = curr.toISOString().slice(0, 10);
+
+    if (!state.simulation) state.simulation = {};
+    state.simulation.currentDate = nextDateStr;
+    state.simulation.dayOffset = (state.simulation.dayOffset || 0) + Number(days || 1);
+
+    const generatedSales = [];
+    if (simulateSales && state.inventory.length > 0) {
+      const txCount = Math.min(state.inventory.length, Math.floor(Math.random() * 3) + 2);
+      const shuffled = state.inventory.slice().sort(() => 0.5 - Math.random());
+      
+      for (let i = 0; i < txCount; i++) {
+        const item = shuffled[i];
+        const q = Math.max(1, Math.min(item.qty > 0 ? item.qty : 3, Math.floor(Math.random() * 4) + 1));
+        const unitPrice = 18000 + Math.floor(Math.random() * 6) * 5000;
+        const rev = q * unitPrice;
+        
+        const saleRecord = {
+          id: Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+          date: nextDateStr,
+          item: item.name,
+          qty: q,
+          rev: rev
+        };
+        state.sales.push(saleRecord);
+        generatedSales.push(saleRecord);
+
+        // Deduct inventory
+        item.qty = Math.max(0, item.qty - q);
+      }
+    }
+
+    saveStore();
+    return {
+      success: true,
+      currentDate: nextDateStr,
+      dayOffset: state.simulation.dayOffset,
+      generatedSales
+    };
+  },
+
+  resetSimulation: () => {
+    state.simulation = {
+      currentDate: null,
+      dayOffset: 0
+    };
+    saveStore();
+    return {
+      success: true,
+      currentDate: new Date().toISOString().slice(0, 10)
+    };
   }
 };
