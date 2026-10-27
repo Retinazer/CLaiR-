@@ -110,18 +110,50 @@ function renderSvgForecast(fc) {
   const nf = predVals.length;
   const n = nh + nf;
 
-  // Empty state fallback
+  // When without data: render a real chart with a line at 0,0
   if (nh === 0) {
-    const ticks = [100, 75, 50, 25, 0];
+    const yTicks = [10, 7.5, 5, 2.5, 0];
     let g = '';
-    ticks.forEach((v, i) => {
-      const y = T + ((B - T) * i) / (ticks.length - 1);
+    // Draw Horizontal Gridlines & Y labels
+    yTicks.forEach((v, i) => {
+      const y = T + ((B - T) * i) / (yTicks.length - 1);
       g +=
-        `<line x1="${L}" y1="${y}" x2="${R}" y2="${y}" stroke="${v === 0 ? '#007AFF' : '#D0E4F7'}" stroke-width="${v === 0 ? 1.5 : 1}"/>` +
-        `<text x="${L - 10}" y="${y + 4}" text-anchor="end" font-size="12" fill="#64748B">${v}</text>`;
+        `<line x1="${L}" y1="${y}" x2="${R}" y2="${y}" stroke="${v === 0 ? '#007AFF' : '#E2E8F0'}" stroke-width="${v === 0 ? 1.5 : 1}"/>` +
+        `<text x="${L - 10}" y="${y + 4}" text-anchor="end" font-size="11" font-weight="500" fill="#64748B">${v}</text>`;
     });
+
+    // 7 timeline points along the 0 baseline
+    const today = new Date();
+    const zeroPoints = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      zeroPoints.push(d);
+    }
+    const dx = (R - L) / (zeroPoints.length - 1);
+    const pts = zeroPoints.map((d, i) => ({
+      x: L + i * dx,
+      y: B,
+      date: fmtMD(d)
+    }));
+
+    // Draw the baseline line at (0, 0)
+    const linePath = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    g += `<polyline points="${linePath}" fill="none" stroke="#007AFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    pts.forEach((p) => {
+      g += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="#007AFF" stroke="#FFFFFF" stroke-width="2">` +
+        `<title>${p.date}: 0 units</title></circle>`;
+    });
+
+    // X Axis baseline & ticks
+    g += `<line x1="${L}" y1="${B}" x2="${R}" y2="${B}" stroke="#007AFF" stroke-width="1.5"/>`;
     g += `<line x1="${L}" y1="${T}" x2="${L}" y2="${B}" stroke="#007AFF" stroke-width="1.5"/>`;
-    g += `<text x="${(L + R) / 2}" y="${(T + B) / 2}" text-anchor="middle" font-size="13" font-weight="500" fill="#64748B">No sales recorded yet. Log sales transactions to activate ETS and SARIMAX forecasting.</text>`;
+
+    pts.forEach((p) => {
+      g += `<line x1="${p.x.toFixed(1)}" y1="${B}" x2="${p.x.toFixed(1)}" y2="${B + 5}" stroke="#007AFF"/>` +
+        `<text x="${p.x.toFixed(1)}" y="${B + 18}" text-anchor="middle" font-size="11" font-weight="500" fill="#64748B">${p.date}</text>`;
+    });
+
     $('fc-svg').innerHTML = g;
     return;
   }
@@ -239,7 +271,10 @@ function renderSvgForecast(fc) {
 async function renderForecastChart() {
   try {
     const fc = await API.getForecast(fcRange, fcGranularity);
-    if (!fc) return;
+    if (!fc) {
+      renderSvgForecast(null);
+      return;
+    }
 
     // 1. Immediately render the SVG Forecast Chart so it is never delayed or blocked
     renderSvgForecast(fc);
@@ -319,6 +354,7 @@ async function renderForecastChart() {
     }
   } catch (err) {
     console.error('Forecast render error:', err);
+    renderSvgForecast(null);
   }
 }
 
@@ -1009,6 +1045,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-ico]').forEach((el) => {
     el.innerHTML = ico(el.dataset.ico);
   });
+
+  // Immediately render zero line at 0,0 so user sees the baseline graph instantly with no loading delay
+  renderSvgForecast(null);
 
   // Initial Sync
   syncAll();
