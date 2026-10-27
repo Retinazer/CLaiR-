@@ -5,7 +5,10 @@
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
-    "dev": "node --watch backend/server.js"
+    "dev": "node --watch backend/server.js",
+    "demo:sparse": "node backend/scripts/seed-demo.js sparse",
+    "demo:rich": "node backend/scripts/seed-demo.js rich",
+    "demo:clear": "node backend/scripts/seed-demo.js clear"
   },
   "keywords": [
     "inventory",
