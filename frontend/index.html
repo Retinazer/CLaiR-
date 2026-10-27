@@ -518,7 +518,10 @@
             </span>
             <b style="font-size:15px;">Restocker &amp; Wholesale Discovery</b>
           </div>
-          <span class="threshold-pill" id="sp-discovery-status">Geo-search active</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="threshold-pill" id="sp-store-loc" style="background:#EBF4FB; color:#0369A1; border-color:#BAE6FD;"><i class="fa-solid fa-location-dot"></i> Pagar Alam, Sumatera Selatan</span>
+            <span class="threshold-pill" id="sp-discovery-status">Geo-search active</span>
+          </div>
         </div>
 
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
@@ -557,11 +560,12 @@
     <section class="screen" id="screen-settings">
       <div class="screen-head">
         <h1>Settings &amp; Profile</h1>
-        <p>Profile, language, currency</p>
+        <p>Profile, language, currency, and store location</p>
       </div>
       <div class="card" style="max-width:560px;">
         <div class="field"><label>Name</label><input id="set-name" placeholder="Your name" /></div>
         <div class="field"><label>Business</label><input id="set-biz" placeholder="Your business name" /></div>
+        <div class="field"><label>Store Location / City</label><input id="set-city" placeholder="e.g. Pagar Alam, Sumatera Selatan" /></div>
         <div class="field"><label>Role</label>
           <select id="set-role">
             <option>Owner</option>

@@ -17,7 +17,13 @@ let map = null;
 let markerLayer = null;
 let youMarker = null;
 
-const DEFAULT_CENTER = [-6.2088, 106.8456]; // Jakarta fallback center
+const DEFAULT_CENTER = [-4.015, 103.25]; // Pagar Alam, Sumatera Selatan
+
+function getStoreCenter() {
+  if (userPos && userPos.lat && userPos.lng) return [userPos.lat, userPos.lng];
+  if (profile && profile.lat != null && profile.lng != null) return [profile.lat, profile.lng];
+  return DEFAULT_CENTER;
+}
 
 // ============================================================================
 // Core Navigation & Landing Page
@@ -812,8 +818,9 @@ async function performSupplierDiscovery(query = '', category = '') {
   }
 
   try {
-    const lat = userPos ? userPos.lat : DEFAULT_CENTER[0];
-    const lng = userPos ? userPos.lng : DEFAULT_CENTER[1];
+    const center = getStoreCenter();
+    const lat = center[0];
+    const lng = center[1];
     const res = await API.discoverSuppliers({ q: query, category, lat, lng });
     const list = (res && res.suppliers) ? res.suppliers : [];
 
@@ -990,7 +997,7 @@ function showSuppliers() {
   }
 
   if (!map) {
-    map = L.map('supplier-map').setView(DEFAULT_CENTER, 12);
+    map = L.map('supplier-map').setView(getStoreCenter(), 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors'
@@ -1061,6 +1068,8 @@ function applyProfile() {
   $('set-role').value = profile.role || 'Owner';
   $('set-lang').value = profile.locale || 'English';
   $('set-curr').value = profile.currency || 'IDR';
+  if ($('set-city')) $('set-city').value = profile.city || 'Pagar Alam, Sumatera Selatan';
+  if ($('sp-store-loc')) $('sp-store-loc').innerHTML = `<i class="fa-solid fa-location-dot" style="margin-right:4px;"></i> ${esc(profile.city || 'Pagar Alam')}`;
   $('lang-top').value = profile.locale || 'English';
   $('curr-top').value = profile.currency || 'IDR';
   $('top-name').textContent = profile.name || 'Guest';
@@ -1297,7 +1306,8 @@ document.addEventListener('DOMContentLoaded', () => {
       business: $('set-biz').value.trim(),
       role: $('set-role').value,
       locale: $('set-lang').value,
-      currency: $('set-curr').value
+      currency: $('set-curr').value,
+      city: $('set-city') ? $('set-city').value.trim() : (profile.city || 'Pagar Alam')
     };
     try {
       await API.updateProfile(updates);

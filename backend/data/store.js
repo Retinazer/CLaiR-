@@ -12,7 +12,11 @@ const DEFAULT_STATE = {
     business: '',
     role: 'Owner',
     locale: 'English',
-    currency: 'IDR'
+    currency: 'IDR',
+    city: 'Pagar Alam',
+    region: 'Sumatera Selatan',
+    lat: -4.015,
+    lng: 103.25
   },
   simulation: {
     currentDate: null,
