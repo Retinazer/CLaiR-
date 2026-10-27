@@ -755,12 +755,16 @@ function renderSupplierCards() {
       const id = s.id || i;
       const cleanPhone = s.phone ? s.phone.replace(/[^0-9]/g, '') : '';
       return (
-        `<div class="sup-card"><div class="top"><b>${esc(s.name)}</b><button class="btn-sm" data-del-sup="${id}">Remove</button></div>` +
+        `<div class="sup-card" data-card-sup="${id}">` +
+        `<div class="top"><b>${esc(s.name)}</b><button class="btn-sm" data-del-sup="${id}">Remove</button></div>` +
         `<div class="meta">${esc(s.category || 'Supplier')}${d}${lt}</div>` +
         (s.address ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;">${esc(s.address)}</div>` : '') +
-        (s.phone ? `<div style="font-size:12px;margin-top:6px;display:flex;align-items:center;gap:10px;"><span style="color:#0369A1;"><i class="fa-solid fa-phone"></i> ${esc(s.phone)}</span>` +
-          `<a href="https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hi ${s.name}, checking stock availability.`)}" target="_blank" style="color:#059669;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><i class="fa-brands fa-whatsapp"></i> Chat</a></div>` : '') +
-        `</div>`
+        `<div style="font-size:12px;margin-top:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">` +
+        (s.phone ? `<span style="color:#0369A1;"><i class="fa-solid fa-phone"></i> ${esc(s.phone)}</span>` : '<span></span>') +
+        `<div style="display:flex;gap:8px;">` +
+        (s.phone ? `<a href="https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hi ${s.name}, checking stock availability.`)}" target="_blank" style="color:#059669;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><i class="fa-brands fa-whatsapp"></i> Chat</a>` : '') +
+        `<button class="btn-plain" data-center-sup="${id}" style="color:var(--primary);font-weight:700;font-size:12px;padding:0;cursor:pointer;"><i class="fa-solid fa-location-crosshairs"></i> View on Map</button>` +
+        `</div></div></div>`
       );
     })
     .join('');
@@ -777,9 +781,23 @@ function renderSupplierCards() {
       }
     };
   });
+
+  host.querySelectorAll('[data-center-sup]').forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.centerSup;
+      const s = suppliers.find((sp, i) => (sp.id || i).toString() === id.toString());
+      if (s && map) {
+        map.flyTo([s.lat, s.lng], 14, { duration: 0.8 });
+        const m = markerInstances[id];
+        if (m) setTimeout(() => m.openPopup(), 850);
+      }
+    };
+  });
 }
 
 let discoveredMarkers = null;
+let markerInstances = {};
 
 async function performSupplierDiscovery(query = '', category = '') {
   const container = $('sp-discover-results');
@@ -842,18 +860,25 @@ async function performSupplierDiscovery(query = '', category = '') {
       </div>
     `;
 
-    // Hook up Pin to My Suppliers
+    // Hook up Pin to My Suppliers with auto map pan and popup open
     container.querySelectorAll('[data-pin-supplier]').forEach((b) => {
       b.onclick = async () => {
         try {
           const supData = JSON.parse(b.getAttribute('data-pin-supplier'));
-          await API.addSupplier(supData);
-          toast(`Pinned "${supData.name}" to your suppliers!`);
+          const added = await API.addSupplier(supData);
+          toast(`Pinned "${supData.name}" to your map!`);
           b.disabled = true;
           b.innerHTML = '<i class="fa-solid fa-check"></i> Pinned';
           b.style.background = '#10B981';
           b.style.borderColor = '#10B981';
           await syncSuppliers();
+          if (map && supData.lat && supData.lng) {
+            map.flyTo([supData.lat, supData.lng], 14, { duration: 1.0 });
+            setTimeout(() => {
+              const m = markerInstances[added.id || supData.id];
+              if (m) m.openPopup();
+            }, 1050);
+          }
         } catch (err) {
           toast('Error adding supplier: ' + err.message);
         }
@@ -899,11 +924,56 @@ async function performSupplierDiscovery(query = '', category = '') {
 function renderMarkers() {
   if (!map || !markerLayer) return;
   markerLayer.clearLayers();
-  suppliers.forEach((s) => {
-    L.circleMarker([s.lat, s.lng], { radius: 8, color: '#fff', weight: 2, fillColor: '#007AFF', fillOpacity: 1 })
-      .bindTooltip(esc(s.name), { permanent: true, direction: 'bottom', offset: [0, 6] })
-      .addTo(markerLayer);
+  markerInstances = {};
+
+  if (!suppliers.length) return;
+
+  const supplierIcon = L.divIcon({
+    className: 'custom-sup-pin',
+    html: `<div style="background:#007AFF; color:#fff; width:30px; height:30px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(0,122,255,0.45); border:2px solid #fff;"><i class="fa-solid fa-truck" style="transform:rotate(45deg); font-size:12px;"></i></div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+    popupAnchor: [0, -32]
   });
+
+  suppliers.forEach((s, idx) => {
+    const id = s.id || idx;
+    const cleanPhone = s.phone ? s.phone.replace(/[^0-9]/g, '') : '';
+    const distText = userPos ? `${distKm(userPos, s).toFixed(1)} km away` : '';
+    const popupHtml = `
+      <div style="font-family:inherit; min-width:200px; padding:4px 2px;">
+        <div style="font-size:14px; font-weight:700; color:#0F172A; margin-bottom:3px;">${esc(s.name)}</div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
+          <span style="font-size:11px; background:#EBF4FB; color:#0369A1; font-weight:600; padding:2px 7px; border-radius:4px;">${esc(s.category || 'Supplier')}</span>
+          ${distText ? `<span style="font-size:11px; background:#F1F5F9; color:#475569; font-weight:600; padding:2px 7px; border-radius:4px;"><i class="fa-solid fa-location-dot"></i> ${distText}</span>` : ''}
+        </div>
+        ${s.address ? `<div style="font-size:12px; color:#64748B; margin-bottom:5px;"><i class="fa-solid fa-building" style="margin-right:4px;"></i>${esc(s.address)}</div>` : ''}
+        <div style="font-size:12px; color:#0284C7; font-weight:600; margin-bottom:6px;"><i class="fa-solid fa-truck-fast" style="margin-right:4px;"></i>${s.leadTimeDays || 3} days estimated lead time</div>
+        ${s.phone ? `<div style="margin-top:8px; padding-top:6px; border-top:1px solid #E2E8F0; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:12px; color:#0369A1; font-weight:500;"><i class="fa-solid fa-phone"></i> ${esc(s.phone)}</span>
+          <a href="https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hi ${s.name}, I am contacting you from CLaiR about inventory restock.`)}" target="_blank" style="display:inline-flex; align-items:center; gap:5px; font-size:12px; color:#059669; font-weight:700; text-decoration:none;"><i class="fa-brands fa-whatsapp"></i> Chat</a>
+        </div>` : ''}
+      </div>
+    `;
+
+    const marker = L.marker([s.lat, s.lng], { icon: supplierIcon })
+      .bindTooltip(`<b>${esc(s.name)}</b>`, { permanent: true, direction: 'bottom', offset: [0, 4], className: 'sup-map-label' })
+      .bindPopup(popupHtml)
+      .addTo(markerLayer);
+
+    markerInstances[id] = marker;
+  });
+
+  // Fit bounds to show all pinned suppliers and user
+  if (suppliers.length > 0) {
+    const coords = suppliers.map((s) => [s.lat, s.lng]);
+    if (userPos) coords.push([userPos.lat, userPos.lng]);
+    if (coords.length > 1) {
+      map.fitBounds(coords, { padding: [50, 50], maxZoom: 14 });
+    } else if (coords.length === 1) {
+      map.setView(coords[0], 13);
+    }
+  }
 }
 
 function renderSuppliers() {
