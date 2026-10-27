@@ -1,0 +1,2815 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CLaiR — Stock Dashboard</title>
+  <link rel="icon"
+    href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Cg%20fill%3D%22none%22%20stroke-width%3D%225.5%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3Cpath%20d%3D%22M38.5%207.9%20A25%2025%200%200%201%2042.6%2054.7%22%20stroke%3D%22%23007AFF%22/%3E%0A%20%20%3Cpath%20d%3D%22M25.5%2056.1%20A25%2025%200%200%201%2021.4%209.3%22%20stroke%3D%22%2353C5F8%22/%3E%0A%3C/g%3E%0A%3Cpath%20d%3D%22M44.7%2059.2%20L40.5%2050.1%20L36.2%2057.6Z%22%20fill%3D%22%23007AFF%22%20stroke%3D%22%23007AFF%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22round%22/%3E%0A%3Cpath%20d%3D%22M19.3%204.8%20L23.5%2013.9%20L27.8%206.4Z%22%20fill%3D%22%2353C5F8%22%20stroke%3D%22%2353C5F8%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22round%22/%3E%0A%3Crect%20x%3D%2219%22%20y%3D%2222%22%20width%3D%2226%22%20height%3D%2221%22%20rx%3D%227.5%22%20fill%3D%22%230F172A%22/%3E%0A%3Cline%20x1%3D%2232%22%20y1%3D%2222%22%20x2%3D%2232%22%20y2%3D%2216.5%22%20stroke%3D%22%230F172A%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22/%3E%0A%3Ccircle%20cx%3D%2232%22%20cy%3D%2214.5%22%20r%3D%222.8%22%20fill%3D%22%2353C5F8%22/%3E%0A%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2231%22%20r%3D%222.6%22%20fill%3D%22%2353C5F8%22/%3E%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2231%22%20r%3D%222.6%22%20fill%3D%22%2353C5F8%22/%3E%0A%3Cpath%20d%3D%22M27.5%2036.2%20Q32%2040%2036.5%2036.2%22%20fill%3D%22none%22%20stroke%3D%22%2353C5F8%22%20stroke-width%3D%222.2%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+  <style>
+    :root {
+      --navy: #0F172A;
+      --primary: #007AFF;
+      --cyan: #53C5F8;
+      --ice: #EBF4FB;
+      --emerald: #10B981;
+      --teal: #3EB890;
+
+      --sun: #53C5F8;
+      --tangerine: #53C5F8;
+      --orange: #007AFF;
+      --cream: #EBF4FB;
+      --white: #FFFFFF;
+      --ink: #0F172A;
+      --muted: #64748B;
+      --border: #D0E4F7;
+      --danger: #DC2626;
+      --ok: #10B981;
+      --shadow: 0 8px 28px rgba(15, 23, 42, .08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    body {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(180deg, #F4F9FD 0%, #EBF4FB 100%);
+      color: var(--ink);
+      overflow: hidden;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+    }
+
+    /* ============== TOP BAR ============== */
+    .topbar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 0 rgba(0, 122, 255, .05);
+      z-index: 50;
+      position: relative;
+    }
+
+    .hamburger {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 0;
+      border-radius: 8px;
+      color: var(--orange);
+    }
+
+    .hamburger:hover {
+      background: #EBF4FB;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      display: block;
+      flex: none;
+    }
+
+    .wm {
+      font-weight: 900;
+      letter-spacing: -.04em;
+      color: var(--ink);
+    }
+
+    .wm i {
+      font-style: normal;
+      color: var(--orange);
+    }
+
+    .brand small {
+      display: block;
+      font-size: 9px;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: .12em;
+    }
+
+    .topbar .spacer {
+      flex: 1;
+    }
+
+    .topbar select {
+      border: 1px solid var(--border);
+      background: #EBF4FB;
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+      color: var(--ink);
+    }
+
+    .profile-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #EBF4FB;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 10px 4px 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .profile-pill .avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #007AFF, #53C5F8);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    /* ============== DRAWER ============== */
+    .drawer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 280px;
+      height: 100%;
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      transform: translateX(-100%);
+      transition: transform .28s ease;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .drawer.open {
+      transform: translateX(0);
+      box-shadow: var(--shadow);
+    }
+
+    .drawer .head {
+      padding: 18px 16px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .drawer h2 {
+      margin: 0;
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .drawer nav {
+      padding: 6px 10px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      color: var(--ink);
+      font-weight: 500;
+      font-size: 14px;
+      border: 0;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover {
+      background: #EBF4FB;
+    }
+
+    .nav-item.active {
+      background: linear-gradient(90deg, #EBF4FB, transparent);
+      color: #007AFF;
+      font-weight: 700;
+    }
+
+    .nav-item .ico {
+      width: 22px;
+      text-align: center;
+    }
+
+    .scrim {
+      position: fixed;
+      inset: 0;
+      background: rgba(31, 41, 55, .3);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+      z-index: 90;
+    }
+
+    .scrim.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ============== MAIN ============== */
+    main {
+      height: calc(100vh - 56px);
+      overflow-y: auto;
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .screen-head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .screen-head h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: -.02em;
+    }
+
+    .screen-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 800px) {
+
+      .grid-2,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      padding: 10px 8px;
+      text-align: left;
+      border-bottom: 1px solid #D0E4F7;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .pill.ok {
+      background: #D1FAE5;
+      color: #10B981;
+    }
+
+    .pill.warn {
+      background: #E6F8F2;
+      color: #3EB890;
+    }
+
+    .pill.danger {
+      background: #FEE2E2;
+      color: var(--danger);
+    }
+
+    /* ============== FORECAST CHART ============== */
+    .chart {
+      height: 240px;
+      position: relative;
+      padding: 12px 8px 24px;
+    }
+
+    .chart svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .chart .legend {
+      display: flex;
+      gap: 14px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .chart .legend i {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    /* ============== CHAT ============== */
+    .chat-wrap {
+      display: flex;
+      flex-direction: column;
+      height: 70vh;
+    }
+
+    #chat-thread {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      background: #F4F9FD;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .msg {
+      max-width: 80%;
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, #007AFF, #0056B3);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.bot {
+      align-self: flex-start;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+      color: #0F172A;
+    }
+
+    .chat-input {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .chat-input input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font: inherit;
+    }
+
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #007AFF, #53C5F8);
+      color: #fff;
+      border: 0;
+      box-shadow: 0 4px 14px rgba(0, 122, 255, .25);
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.05);
+    }
+
+    /* ============== SUPPLIERS ============== */
+    .supplier-layout {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .supplier-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .map {
+      height: 360px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #E5E7EB;
+      position: relative;
+      border: 1px solid var(--border);
+    }
+
+    .pin {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .pin .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--orange);
+      border: 2px solid #fff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .2);
+    }
+
+    .pin.you .dot {
+      background: var(--sun);
+    }
+
+    .pin .lbl {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      margin-top: 4px;
+      white-space: nowrap;
+    }
+
+    .supplier-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 360px;
+      overflow-y: auto;
+    }
+
+    .sup-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .sup-card .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .sup-card .top b {
+      font-size: 13px;
+    }
+
+    .sup-card .meta {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .star {
+      color: var(--sun);
+    }
+
+
+
+    /* ============== SETTINGS ============== */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+
+    .field label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .field input,
+    .field select {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font: inherit;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 30px;
+      transform: translateX(-50%) translateY(20px);
+      background: #0F172A;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, .3);
+      opacity: 0;
+      transition: all .25s;
+      z-index: 200;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ============== LANDING (CLaiR orange palette) ============== */
+    #landing {
+      height: 100vh;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+      padding: 20px 20px 24px;
+      background: linear-gradient(180deg, #0F172A 0%, #162C4E 380px, #007AFF 850px, #53C5F8 100%);
+      font-family: "Inter", system-ui, sans-serif;
+      color: var(--ink);
+    }
+
+    body.in-app #landing {
+      display: none;
+    }
+
+    body:not(.in-app) header.topbar,
+    body:not(.in-app) .drawer,
+    body:not(.in-app) .scrim,
+    body:not(.in-app) main {
+      display: none;
+    }
+
+    .l-frame {
+      max-width: 1240px;
+      margin: 0 auto;
+      background: #fff;
+      border: 10px solid #fff;
+      border-radius: 44px;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(15, 23, 42, .35);
+    }
+
+    .l-top {
+      position: relative;
+      background: linear-gradient(180deg, #1E3A8A 0%, #007AFF 55%, #53C5F8 100%);
+      border-radius: 34px 34px 0 0;
+    }
+
+    .l-nav {
+      position: sticky;
+      top: 12px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      width: fit-content;
+      max-width: calc(100% - 24px);
+      margin: 0 auto;
+      padding: 12px 14px 12px 28px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(235, 244, 251, .95), rgba(208, 228, 247, .9));
+      box-shadow: 0 6px 24px rgba(15, 23, 42, .25);
+      top: 18px;
+    }
+
+    .l-nav .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 900;
+      font-size: 22px;
+      letter-spacing: -.03em;
+      color: var(--ink);
+    }
+
+    .l-nav .mark {
+      width: 46px;
+      height: 46px;
+      flex: none;
+      margin: -4px 0;
+    }
+
+    .l-nav .logo {
+      font-size: 24px;
+    }
+
+    .l-nav .links {
+      display: flex;
+      gap: 6px;
+    }
+
+    .l-nav .links button {
+      background: none;
+      border: 0;
+      padding: 8px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0F172A;
+      border-radius: 999px;
+    }
+
+    .l-nav .links button:hover {
+      background: rgba(255, 255, 255, .55);
+      color: #007AFF;
+    }
+
+    .l-black {
+      background: #0F172A;
+      color: #fff;
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 24px;
+      font-weight: 700;
+      font-size: 15px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, .25);
+    }
+
+    .l-black:hover {
+      background: #007AFF;
+      transform: translateY(-1px);
+    }
+
+    .l-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: center;
+      gap: 20px;
+      padding: 70px 64px 150px;
+      min-height: 620px;
+    }
+
+    .l-hero h1 {
+      color: #fff;
+      font-size: clamp(38px, 5.6vw, 70px);
+      line-height: 1.04;
+      font-weight: 800;
+      letter-spacing: -.035em;
+      margin: 0 0 20px;
+    }
+
+    .l-hero h1 span {
+      display: block;
+    }
+
+    .l-hero h1 .y {
+      color: #53C5F8;
+    }
+
+    .l-hero p {
+      color: rgba(255, 255, 255, .92);
+      font-size: 18px;
+      line-height: 1.6;
+      max-width: 470px;
+      margin: 0 0 34px;
+    }
+
+    .l-wave {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -1px;
+      width: 100%;
+      height: 90px;
+      display: block;
+    }
+
+    .l-art {
+      position: relative;
+      width: 100%;
+      max-width: 520px;
+      aspect-ratio: 1 / 1;
+      margin-left: auto;
+    }
+
+    .l-halo {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .10);
+    }
+
+    .l-halo.a {
+      inset: 6% 6% 6% 6%;
+    }
+
+    .l-halo.b {
+      inset: 20% 20% 20% 20%;
+      background: rgba(255, 255, 255, .12);
+    }
+
+    .l-card {
+      position: absolute;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, .18);
+      padding: 16px;
+      border: 1px solid #D0E4F7;
+    }
+
+    .l-card.main {
+      left: 19%;
+      top: 30%;
+      width: 62%;
+      padding: 18px;
+    }
+
+    .l-card.main .cap {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .l-card.main .cap span {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .l-card.main svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .l-card.s {
+      width: 44%;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border-radius: 16px;
+    }
+
+    .l-card.s .ic {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      flex: none;
+      color: #fff;
+    }
+
+    .l-card.s b {
+      display: block;
+      font-size: 13px;
+    }
+
+    .l-card.s small {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .l-card.c1 {
+      right: -2%;
+      top: 4%;
+      transform: rotate(5deg);
+    }
+
+    .l-card.c1 .ic {
+      background: #10B981;
+    }
+
+    .l-card.c2 {
+      left: -3%;
+      bottom: 14%;
+      transform: rotate(-5deg);
+    }
+
+    .l-card.c2 .ic {
+      background: #3EB890;
+    }
+
+    .l-card.c3 {
+      right: 0;
+      bottom: 2%;
+      transform: rotate(3deg);
+      background: #EBF4FB;
+    }
+
+    .l-card.c3 .ic {
+      background: #007AFF;
+    }
+
+    .l-badge {
+      position: absolute;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #0F172A;
+      border: 4px solid #fff;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, .25);
+      color: #53C5F8;
+    }
+
+    .l-badge.b1 {
+      left: 8%;
+      top: 23%;
+    }
+
+    .l-sec {
+      background: #fff;
+      padding: 72px 56px;
+      text-align: center;
+    }
+
+    .l-sec h2 {
+      font-size: clamp(28px, 3.6vw, 44px);
+      letter-spacing: -.03em;
+      font-weight: 800;
+      margin: 0 0 12px;
+    }
+
+    .l-sec .lead {
+      color: var(--muted);
+      max-width: 620px;
+      margin: 0 auto 40px;
+      line-height: 1.6;
+    }
+
+    .l-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      text-align: left;
+    }
+
+    .l-tile {
+      background: var(--cream);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .l-tile .n {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #007AFF, #53C5F8);
+      color: #fff;
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+
+    .l-tile h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      letter-spacing: -.01em;
+    }
+
+    .l-tile p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .l-sec.alt {
+      background: linear-gradient(180deg, #F4F9FD, #EBF4FB);
+    }
+
+    .l-cta-band {
+      margin: 0 56px 40px;
+      border-radius: 28px;
+      padding: 44px 24px;
+      text-align: center;
+      color: #fff;
+      background: linear-gradient(135deg, #007AFF, #53C5F8);
+    }
+
+    .l-cta-band h2 {
+      margin: 0 0 8px;
+      font-size: clamp(24px, 3vw, 36px);
+      letter-spacing: -.03em;
+    }
+
+    .l-cta-band p {
+      margin: 0 0 22px;
+      color: rgba(255, 255, 255, .92);
+    }
+
+    .l-foot {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 0 0 28px;
+      background: #fff;
+    }
+
+    @media (max-width: 900px) {
+      #landing {
+        padding: 8px;
+      }
+
+      .l-frame {
+        border-width: 6px;
+        border-radius: 30px;
+      }
+
+      .l-top {
+        border-radius: 24px 24px 0 0;
+      }
+
+      .l-nav {
+        gap: 8px;
+        padding: 8px 8px 8px 14px;
+      }
+
+      .l-nav .links {
+        display: none;
+      }
+
+      .l-hero {
+        grid-template-columns: 1fr;
+        padding: 48px 22px 120px;
+        gap: 36px;
+      }
+
+      .l-art {
+        margin: 0 auto;
+        max-width: 420px;
+      }
+
+      .l-sec {
+        padding: 56px 22px;
+      }
+
+      .l-cta-band {
+        margin: 0 22px 32px;
+      }
+    }
+
+    /* ============== DASHBOARD PAGES (reference style) ============== */
+    .screen {
+      max-width: 1180px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+
+    .page-head h1 {
+      margin: 0;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -.03em;
+    }
+
+    .page-head p {
+      margin: 4px 0 0;
+      color: #64748B;
+      font-size: 16px;
+    }
+
+    .date-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #EBF4FB;
+      border: 1px solid #D0E4F7;
+      border-radius: 999px;
+      padding: 9px 16px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #007AFF;
+      white-space: nowrap;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .sc {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 20px 22px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
+    }
+
+    .chip {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      flex: none;
+      background: #EBF4FB;
+      color: #007AFF;
+    }
+
+    .chip.red {
+      background: #FEE2E2;
+      color: #DC2626;
+    }
+
+    .chip.amber {
+      background: #E6F8F2;
+      color: #3EB890;
+    }
+
+    .chip.green {
+      background: #D1FAE5;
+      color: #10B981;
+    }
+
+    .sc .lbl {
+      margin-top: 14px;
+      font-size: 12.5px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #64748B;
+    }
+
+    .sc .val {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -.03em;
+      line-height: 1.15;
+      margin: 2px 0;
+    }
+
+    .sc .val.red {
+      color: #DC2626;
+    }
+
+    .sc .val.green {
+      color: #10B981;
+    }
+
+    .sc .sub {
+      font-size: 14.5px;
+      color: #64748B;
+    }
+
+    .panel {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      padding: 24px;
+      box-shadow: 0 14px 40px rgba(15, 23, 42, .06);
+      margin-bottom: 22px;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .ptitle {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .ptitle h2 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+
+    .muted {
+      color: #64748B;
+      font-size: 14.5px;
+    }
+
+    .panel-foot {
+      text-align: right;
+      margin-top: 8px;
+    }
+
+    .panel-foot a {
+      color: #007AFF;
+      font-weight: 700;
+      font-size: 15px;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    .seg {
+      display: inline-flex;
+      gap: 2px;
+      border: 1px solid var(--border);
+      background: #EBF4FB;
+      border-radius: 999px;
+      padding: 4px;
+    }
+
+    .seg button {
+      border: 1px solid transparent;
+      background: transparent;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #0F172A;
+    }
+
+    .seg button.on {
+      background: #fff;
+      color: #007AFF;
+      border-color: #53C5F8;
+      box-shadow: 0 2px 8px rgba(0, 122, 255, .15);
+    }
+
+    .seg .cnt {
+      display: inline-block;
+      margin-left: 6px;
+      background: #D8ECF9;
+      color: #64748B;
+      border-radius: 999px;
+      padding: 1px 8px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .seg button.on .cnt {
+      color: #007AFF;
+      background: #EBF4FB;
+    }
+
+    .attn {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: 16px;
+      border: 1px solid;
+      border-left-width: 4px;
+      margin-bottom: 12px;
+    }
+
+    .attn.critical {
+      background: #FEF2F2;
+      border-color: #FECACA;
+      border-left-color: #DC2626;
+    }
+
+    .attn.low {
+      background: #F0FDF9;
+      border-color: #A7F3D0;
+      border-left-color: #3EB890;
+    }
+
+    .attn .body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .attn .body b {
+      display: block;
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .attn .body small {
+      color: #64748B;
+      font-size: 14px;
+    }
+
+    .btn-main {
+      background: linear-gradient(135deg, #007AFF, #53C5F8);
+      color: #fff;
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-weight: 800;
+      font-size: 15px;
+      box-shadow: 0 6px 16px rgba(0, 122, 255, .25);
+    }
+
+    .btn-plain {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-weight: 800;
+      font-size: 15px;
+    }
+
+    .spill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .spill.good {
+      background: #D1FAE5;
+      color: #10B981;
+    }
+
+    .spill.low {
+      background: #E6F8F2;
+      color: #3EB890;
+    }
+
+    .spill.critical {
+      background: #FEE2E2;
+      color: #DC2626;
+    }
+
+    .legend-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 15px;
+      color: #64748B;
+      margin-bottom: 10px;
+    }
+
+    .legend-row .lg {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .legend-row .lg i {
+      display: inline-block;
+      width: 22px;
+      height: 0;
+      border-top: 3px solid;
+      margin-right: 8px;
+      vertical-align: middle;
+      border-radius: 2px;
+    }
+
+    .chart-frame {
+      background: #F4F9FD;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 8px;
+    }
+
+    .chart-frame .chart {
+      height: auto;
+      padding: 0;
+    }
+
+    .chart-frame .chart svg {
+      height: auto;
+      display: block;
+      width: 100%;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar input {
+      flex: 1;
+      min-width: 200px;
+      padding: 12px 18px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font: inherit;
+      font-size: 15px;
+    }
+
+    .tbl-wrap {
+      overflow-x: auto;
+    }
+
+    .screen table th {
+      background: #EBF4FB;
+      color: #0F172A;
+      font-size: 12.5px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 700;
+      padding: 16px 14px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .screen table td {
+      padding: 16px 14px;
+      border-bottom: 1px solid #E2EFF9;
+      font-size: 15px;
+      vertical-align: middle;
+    }
+
+    .screen table .r {
+      text-align: right;
+    }
+
+    .screen table td b {
+      display: block;
+      font-size: 17px;
+      font-weight: 800;
+      color: #0F172A;
+    }
+
+    .screen table td small {
+      color: #64748B;
+      font-size: 13.5px;
+    }
+
+    .screen table .big {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .screen table .unit {
+      color: #64748B;
+      font-size: 14px;
+    }
+
+    .screen table .dim {
+      color: #94A3B8;
+    }
+
+    tr.row-low td {
+      background: #F0FDF9;
+    }
+
+    tr.row-critical td {
+      background: #FEF2F2;
+    }
+
+    td.act {
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #EBF4FB;
+      color: #007AFF;
+      display: inline-grid;
+      place-items: center;
+      margin-left: 6px;
+    }
+
+    .icon-btn.del {
+      background: #fff;
+      color: #64748B;
+    }
+
+    .icon-btn.del:hover {
+      color: #DC2626;
+      border-color: #FECACA;
+    }
+
+    @media (max-width: 700px) {
+      .page-head h1 {
+        font-size: 26px;
+      }
+
+      .sc .val {
+        font-size: 30px;
+      }
+    }
+
+    /* ============== SKELETON / EMPTY DASHBOARD ============== */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .stat {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .stat .ico {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      background: #EBF4FB;
+      color: #007AFF;
+      flex: none;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 26px;
+      letter-spacing: -.02em;
+      line-height: 1.1;
+    }
+
+    .stat small {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .chart-empty {
+      position: relative;
+    }
+
+    .chart-empty .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      padding: 0 20px;
+      pointer-events: none;
+    }
+
+    .ov-box {
+      background: rgba(255, 255, 255, .94);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 22px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, .08);
+    }
+
+    .chart-empty .overlay b {
+      color: var(--ink);
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    .sk {
+      display: block;
+      height: 10px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, #E2EFF9, #D0E4F7, #E2EFF9);
+      background-size: 200% 100%;
+      animation: shim 1.8s linear infinite;
+    }
+
+    .sk-pill {
+      width: 54px;
+      height: 18px;
+      border-radius: 999px;
+    }
+
+    @keyframes shim {
+      from {
+        background-position: 200% 0;
+      }
+
+      to {
+        background-position: -200% 0;
+      }
+    }
+
+    tr.sk-row td {
+      padding-top: 14px;
+      padding-bottom: 14px;
+    }
+
+    .sk-note {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      padding: 18px 12px 4px;
+      line-height: 1.5;
+    }
+
+    .sk-note b {
+      display: block;
+      color: var(--ink);
+      font-size: 15px;
+      margin-bottom: 2px;
+    }
+
+    .sup-card.sk-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 14px;
+    }
+
+    /* ============== EMPTY STATES / FORMS ============== */
+    .empty-note {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      padding: 28px 12px;
+      line-height: 1.5;
+    }
+
+    .empty-note b {
+      display: block;
+      color: var(--ink);
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .inline-form {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .inline-form input,
+    .inline-form select {
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font: inherit;
+    }
+
+    .btn-sm {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--danger);
+    }
+
+    #supplier-map {
+      z-index: 0;
+    }
+
+    .map .leaflet-container {
+      height: 100%;
+      width: 100%;
+      font: inherit;
+    }
+
+    .map-hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 8px 2px 0;
+    }
+  </style>
+</head>
+
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="clair-mark" viewBox="0 0 64 64">
+      <g fill="none" stroke-width="5.5" stroke-linecap="round">
+        <path d="M38.5 7.9 A25 25 0 0 1 42.6 54.7" stroke="#007AFF" />
+        <path d="M25.5 56.1 A25 25 0 0 1 21.4 9.3" stroke="#53C5F8" />
+      </g>
+      <path d="M44.7 59.2 L40.5 50.1 L36.2 57.6Z" fill="#007AFF" stroke="#007AFF" stroke-width="2"
+        stroke-linejoin="round" />
+      <path d="M19.3 4.8 L23.5 13.9 L27.8 6.4Z" fill="#53C5F8" stroke="#53C5F8" stroke-width="2"
+        stroke-linejoin="round" />
+      <rect x="19" y="22" width="26" height="21" rx="7.5" fill="#0F172A" />
+      <line x1="32" y1="22" x2="32" y2="16.5" stroke="#0F172A" stroke-width="2.4" stroke-linecap="round" />
+      <circle cx="32" cy="14.5" r="2.8" fill="#53C5F8" />
+      <circle cx="26.5" cy="31" r="2.6" fill="#53C5F8" />
+      <circle cx="37.5" cy="31" r="2.6" fill="#53C5F8" />
+      <path d="M27.5 36.2 Q32 40 36.5 36.2" fill="none" stroke="#53C5F8" stroke-width="2.2" stroke-linecap="round" />
+    </symbol>
+  </svg>
+
+  <!-- LANDING PAGE -->
+  <div id="landing">
+    <div class="l-frame">
+      <div class="l-top" id="l-home">
+        <nav class="l-nav">
+          <div class="logo"><svg class="mark" viewBox="0 0 64 64" aria-label="CLaiR logo">
+              <use href="#clair-mark" />
+            </svg><span class="wm">CL<i>ai</i>R</span></div>
+          <div class="links">
+            <button data-scroll="l-home">Home</button>
+            <button data-scroll="l-about">About</button>
+            <button data-scroll="l-how">How it works</button>
+          </div>
+          <button class="l-black" data-enter>Get Started</button>
+        </nav>
+
+        <section class="l-hero">
+          <div>
+            <h1><span>Predict.</span><span class="y">Prevent.</span><span>Recover.</span></h1>
+            <p>Add your sales and stock as usual. CLaiR forecasts demand, warns you before items expire, and finds
+              nearby partners for any waste you cannot avoid.</p>
+            <button class="l-black" data-enter>Get Started</button>
+          </div>
+
+          <div class="l-art" aria-hidden="true">
+            <div class="l-halo a"></div>
+            <div class="l-halo b"></div>
+            <div class="l-card main">
+              <div class="cap">Demand forecast <span>Next 7 days</span></div>
+              <svg viewBox="0 0 300 150" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="lgA" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#007AFF" stop-opacity=".45" />
+                    <stop offset="1" stop-color="#007AFF" stop-opacity="0" />
+                  </linearGradient>
+                  <linearGradient id="lgH" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#53C5F8" stop-opacity=".45" />
+                    <stop offset="1" stop-color="#53C5F8" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <g stroke="#D0E4F7" stroke-dasharray="3 3">
+                  <line x1="0" y1="35" x2="300" y2="35" />
+                  <line x1="0" y1="80" x2="300" y2="80" />
+                  <line x1="0" y1="125" x2="300" y2="125" />
+                </g>
+                <path d="M0 110 L40 98 L80 90 L120 72 L160 64 L160 150 L0 150Z" fill="url(#lgH)" />
+                <path d="M0 110 L40 98 L80 90 L120 72 L160 64" stroke="#53C5F8" stroke-width="3" fill="none"
+                  stroke-linecap="round" />
+                <path d="M160 64 L205 48 L250 38 L295 52 L295 150 L160 150Z" fill="url(#lgA)" />
+                <path d="M160 64 L205 48 L250 38 L295 52" stroke="#007AFF" stroke-width="3" stroke-dasharray="7 5"
+                  fill="none" stroke-linecap="round" />
+                <circle cx="205" cy="48" r="4.5" fill="#007AFF" />
+                <circle cx="250" cy="38" r="4.5" fill="#007AFF" />
+                <circle cx="295" cy="52" r="4.5" fill="#007AFF" />
+              </svg>
+            </div>
+            <div class="l-badge b1"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 17l5-6 4 3 8-9" />
+                <path d="M15 5h5v5" />
+              </svg></div>
+            <div class="l-card s c1">
+              <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+                  <path d="M9 12l2 2 4-4" />
+                </svg></div>
+              <div><b>Prevent</b><small>Expiry watch</small></div>
+            </div>
+            <div class="l-card s c2">
+              <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+                  <path d="M3 8v8l9 5 9-5V8" />
+                </svg></div>
+              <div><b>Restock signal</b><small>Order on time</small></div>
+            </div>
+            <div class="l-card s c3">
+              <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 11a8 8 0 0 0-14-4L4 9" />
+                  <path d="M4 4v5h5" />
+                  <path d="M4 13a8 8 0 0 0 14 4l2-2" />
+                  <path d="M20 20v-5h-5" />
+                </svg></div>
+              <div><b>Recover</b><small>Nearby partner</small></div>
+            </div>
+          </div>
+        </section>
+        <svg class="l-wave" viewBox="0 0 1200 90" preserveAspectRatio="none">
+          <path d="M0 40 C 260 80 520 60 760 38 C 960 20 1100 28 1200 40 L1200 90 L0 90Z" fill="#fff" />
+        </svg>
+      </div>
+
+      <section class="l-sec" id="l-how">
+        <h2>How does it work?</h2>
+        <p class="lead">Start with a few basics and let CLaiR learn your business over time.</p>
+        <div class="l-grid">
+          <div class="l-tile">
+            <div class="n">1</div>
+            <h3>Set up</h3>
+            <p>Create an account and answer a few questions about your products.</p>
+          </div>
+          <div class="l-tile">
+            <div class="n">2</div>
+            <h3>Add your records</h3>
+            <p>Enter daily sales, expiry dates and supplier deliveries.</p>
+          </div>
+          <div class="l-tile">
+            <div class="n">3</div>
+            <h3>Get recommendations</h3>
+            <p>See what to restock, how much, and when.</p>
+          </div>
+          <div class="l-tile">
+            <div class="n">4</div>
+            <h3>Cut waste</h3>
+            <p>Follow expiry warnings, and find a nearby partner for leftovers.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="l-sec alt" id="l-about">
+        <h2>Built for small businesses</h2>
+        <p class="lead">Big companies use expensive planning systems. Small food and beverage shops are left guessing,
+          so they run out or throw expired stock away. CLaiR is a simple assistant that fixes that.</p>
+        <div class="l-grid">
+          <div class="l-tile">
+            <div class="n">P</div>
+            <h3>Predict</h3>
+            <p>Forecasts demand from sales, holidays and seasons. Starts with Exponential Smoothing and moves to ARIMA
+              as your history grows.</p>
+          </div>
+          <div class="l-tile">
+            <div class="n">P</div>
+            <h3>Prevent</h3>
+            <p>Watches expiry dates and stock levels to avoid both shortages and overstock.</p>
+          </div>
+          <div class="l-tile">
+            <div class="n">R</div>
+            <h3>Recover</h3>
+            <p>Points unavoidable waste to nearby recycling or waste-processing partners.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="l-cta-band">
+        <h2>Ready to know what's next?</h2>
+        <p>Open the dashboard and add your first item.</p>
+        <button class="l-black" data-enter>Get Started</button>
+      </div>
+      <div class="l-foot">© CLaiR · Predict. Prevent. Recover.</div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <button class="hamburger" id="hamburger" aria-label="Open menu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round">
+        <line x1="4" y1="7" x2="20" y2="7" />
+        <line x1="4" y1="12" x2="20" y2="12" />
+        <line x1="4" y1="17" x2="20" y2="17" />
+      </svg>
+    </button>
+    <div class="brand" id="brand-home" style="cursor:pointer;" title="Back to home">
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-label="CLaiR logo">
+        <use href="#clair-mark" />
+      </svg>
+      <div>
+        <div><span class="wm">CL<i>ai</i>R</span></div><small>KNOW WHAT'S NEXT.</small>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <select id="lang-top" aria-label="Language">
+      <option>English</option>
+      <option>Bahasa Indonesia</option>
+      <option>Bahasa Melayu</option>
+      <option>Thai</option>
+      <option>Filipino</option>
+      <option>Tiếng Việt</option>
+    </select>
+    <select id="curr-top" aria-label="Currency">
+      <option>USD</option>
+      <option>SGD</option>
+      <option>IDR</option>
+      <option>MYR</option>
+      <option>THB</option>
+      <option>VND</option>
+    </select>
+    <div class="profile-pill">
+      <div class="avatar" id="top-avatar">?</div><span id="top-name">Guest</span>
+    </div>
+  </header>
+
+  <aside class="drawer" id="drawer">
+    <div class="head">
+      <h2>Menu</h2>
+      <button class="hamburger" id="drawer-close" aria-label="Close menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round">
+          <line x1="6" y1="6" x2="18" y2="18" />
+          <line x1="6" y1="18" x2="18" y2="6" />
+        </svg>
+      </button>
+    </div>
+    <nav>
+      <button class="nav-item active" data-screen="forecast"><span class="ico">🏠</span> Overview</button>
+      <button class="nav-item" data-screen="history"><span class="ico">📊</span> Sales History</button>
+      <button class="nav-item" data-screen="inventory"><span class="ico">📦</span> Inventory</button>
+      <button class="nav-item" data-screen="restock"><span class="ico">🔄</span> Restock Signals</button>
+      <button class="nav-item" data-screen="input-data"><span class="ico">📝</span> Input Data</button>
+      <button class="nav-item" data-screen="chat"><span class="ico">💬</span> Chat with CLaiR</button>
+      <button class="nav-item" data-screen="suppliers"><span class="ico">📍</span> Suppliers</button>
+      <button class="nav-item" data-screen="settings"><span class="ico">⚙️</span> Settings &amp; Profile</button>
+    </nav>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main>
+    <!-- FORECAST -->
+    <section class="screen active" id="screen-forecast">
+      <div class="page-head">
+        <div>
+          <h1 id="ov-greet">Good morning</h1>
+          <p>Here's what needs your attention today.</p>
+        </div>
+        <div class="date-pill" id="ov-date"></div>
+      </div>
+      <div class="stat-grid">
+        <div class="sc"><span class="chip red" data-ico="alert-circle"></span>
+          <div class="lbl">At risk</div>
+          <div class="val red" id="ov-risk">0</div>
+          <div class="sub">items below reorder point</div>
+        </div>
+        <div class="sc"><span class="chip green" data-ico="check-circle"></span>
+          <div class="lbl">Healthy</div>
+          <div class="val green" id="ov-good">0</div>
+          <div class="sub">items in stock</div>
+        </div>
+        <div class="sc"><span class="chip " data-ico="flame"></span>
+          <div class="lbl">Today's demand</div>
+          <div class="val " id="ov-demand">—</div>
+          <div class="sub">No sales data yet</div>
+        </div>
+        <div class="sc"><span class="chip " data-ico="target"></span>
+          <div class="lbl">Forecast reliability</div>
+          <div class="val " id="ov-rel">—</div>
+          <div class="sub">Needs sales history</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="ptitle"><span class="chip " data-ico="bell"></span>
+            <h2>Attention required</h2>
+          </div><span class="muted" id="ov-count"></span>
+        </div>
+        <div id="ov-attn"></div>
+        <div class="panel-foot"><a id="ov-all">View all recommendations →</a></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="ptitle"><span class="chip " data-ico="chart-line"></span>
+            <h2>Demand forecast</h2>
+          </div>
+          <div class="seg" data-seg><button class="on" data-range="1d">1d</button><button
+              data-range="1w">1w</button><button data-range="1m">1m</button></div>
+        </div>
+        <div class="legend-row">
+          <div class="lg"><span><i style="border-color:#007AFF"></i>Actual</span><span><i
+                style="border-color:#53C5F8;border-top-style:dashed"></i>Predicted</span></div><b
+            style="color:#0F172A">No forecast yet</b>
+        </div>
+        <div class="chart-frame">
+          <div class="chart" id="forecast-chart"><svg id="fc-svg" viewBox="0 0 700 270" role="img"
+              aria-label="Empty demand forecast chart"></svg></div>
+        </div>
+      </div>
+      </div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="screen" id="screen-history">
+      <div class="page-head">
+        <div>
+          <h1>Sales History</h1>
+          <p id="hist-sub">Past 30 days</p>
+        </div>
+        <div class="date-pill" id="hist-range"></div>
+      </div>
+      <div class="stat-grid">
+        <div class="sc"><span class="chip " data-ico="receipt"></span>
+          <div class="lbl">Transactions</div>
+          <div class="val " id="hs-tx">0</div>
+          <div class="sub">no sales recorded</div>
+        </div>
+        <div class="sc"><span class="chip " data-ico="boxes"></span>
+          <div class="lbl">Units sold</div>
+          <div class="val " id="hs-units">0</div>
+          <div class="sub">no sales recorded</div>
+        </div>
+        <div class="sc"><span class="chip green" data-ico="coins"></span>
+          <div class="lbl">Revenue</div>
+          <div class="val " id="hs-rev">—</div>
+          <div class="sub">no sales recorded</div>
+        </div>
+        <div class="sc"><span class="chip " data-ico="flame"></span>
+          <div class="lbl">Top product</div>
+          <div class="val " id="hs-top">—</div>
+          <div class="sub">no sales recorded</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="ptitle"><span class="chip " data-ico="list"></span>
+            <h2>Recent transactions</h2>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="seg" data-seg><button data-days="7">7d</button><button data-days="30"
+                class="on">30d</button><button data-days="90">90d</button></div>
+            <button class="btn-main" id="hist-new">+ Input Data</button>
+          </div>
+        </div>
+        <form id="hist-form" class="inline-form" style="display:none; margin: 0 0 18px;">
+          <input id="hist-date" type="date" required style="width:145px;" />
+          <input id="hist-name" placeholder="Item name / Recipe" list="hist-item-list" required
+            style="flex:1; min-width:140px;" />
+          <datalist id="hist-item-list"></datalist>
+          <input id="hist-qty" type="number" min="1" placeholder="Qty sold" required style="width:110px;" />
+          <input id="hist-rev-in" type="number" min="0" placeholder="Revenue" required style="width:130px;" />
+          <button class="btn btn-primary" type="submit">Record sale</button>
+        </form>
+        <div class="tbl-wrap" id="history-card"></div>
+      </div>
+    </section>
+
+    <!-- INVENTORY -->
+    <section class="screen" id="screen-inventory">
+      <div class="page-head">
+        <div>
+          <h1>Inventory</h1>
+          <p id="inv-sub">0 items tracked · 0 below reorder point</p>
+        </div>
+        <div class="date-pill" id="inv-date"></div>
+      </div>
+      <div class="stat-grid">
+        <div class="sc"><span class="chip red" data-ico="alert-circle"></span>
+          <div class="lbl">Critical</div>
+          <div class="val red" id="inv-crit">0</div>
+          <div class="sub">needs immediate restock</div>
+        </div>
+        <div class="sc"><span class="chip amber" data-ico="alert-triangle"></span>
+          <div class="lbl">Low</div>
+          <div class="val " id="inv-low">0</div>
+          <div class="sub">approaching reorder point</div>
+        </div>
+        <div class="sc"><span class="chip green" data-ico="check-circle"></span>
+          <div class="lbl">Healthy</div>
+          <div class="val green" id="inv-good">0</div>
+          <div class="sub">stock above safety level</div>
+        </div>
+        <div class="sc"><span class="chip " data-ico="boxes"></span>
+          <div class="lbl">Total items</div>
+          <div class="val " id="inv-total">0</div>
+          <div class="sub">items tracked</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="ptitle"><span class="chip " data-ico="boxes"></span>
+            <h2>Current stock</h2>
+          </div><button class="btn-main" id="inv-new">+ New item</button>
+        </div>
+        <form id="inv-form" class="inline-form" style="display:none; margin: 0 0 18px;">
+          <input id="inv-sku" placeholder="SKU" required style="width:100px;" />
+          <input id="inv-name" placeholder="Item name" required style="flex:1; min-width:140px;" />
+          <input id="inv-qty" type="number" min="0" placeholder="On hand" required style="width:115px;" />
+          <input id="inv-unit" placeholder="Unit (g, ml, pcs)" required style="width:160px;" />
+          <input id="inv-reorder" type="number" min="0" placeholder="Reorder point" required style="width:140px;" />
+          <button class="btn btn-primary" type="submit">Add item</button>
+        </form>
+        <div class="toolbar">
+          <div class="seg" id="inv-tabs" data-seg>
+            <button data-f="all" class="on">All<span class="cnt">0</span></button>
+            <button data-f="critical">Critical<span class="cnt">0</span></button>
+            <button data-f="low">Low<span class="cnt">0</span></button>
+            <button data-f="good">Healthy<span class="cnt">0</span></button>
+          </div>
+          <input id="inv-search" placeholder="Search items, SKUs..." autocomplete="off" />
+        </div>
+        <div class="tbl-wrap" id="inv-wrap"></div>
+      </div>
+    </section>
+
+    <!-- RESTOCK -->
+    <section class="screen" id="screen-restock">
+      <div class="screen-head">
+        <h1>Restock Signals</h1>
+        <p>Items below reorder point</p>
+      </div>
+      <div class="card">
+        <div id="restock-wrap"></div>
+        <form id="restock-form" class="inline-form">
+          <select id="restock-sku"></select>
+          <input id="restock-qty" type="number" min="1" placeholder="Qty" style="width:90px;" />
+          <button class="btn btn-primary" type="submit">+ Add stock</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- INPUT DATA -->
+    <section class="screen" id="screen-input-data">
+      <div class="page-head">
+        <div>
+          <h1>Input Data</h1>
+          <p>Record daily sales transactions or add new inventory items</p>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+        <!-- Record Sale Card -->
+        <div class="card">
+          <div class="panel-head" style="margin-bottom:14px;">
+            <div class="ptitle"><span class="chip" data-ico="receipt"></span>
+              <h2>Record Sale Transaction</h2>
+            </div>
+          </div>
+          <form id="inp-sale-form">
+            <div class="field"><label>Date</label><input id="inp-sale-date" type="date" required /></div>
+            <div class="field"><label>Item / Recipe</label><input id="inp-sale-item" placeholder="e.g. Arabian Coffee"
+                list="inp-sale-list" required /><datalist id="inp-sale-list"></datalist></div>
+            <div class="field"><label>Quantity Sold</label><input id="inp-sale-qty" type="number" min="1"
+                placeholder="e.g. 5" required /></div>
+            <div class="field"><label>Total Revenue</label><input id="inp-sale-rev" type="number" min="0"
+                placeholder="e.g. 75000" required /></div>
+            <button class="btn btn-primary" type="submit" style="width:100%;margin-top:6px;">Record Sale</button>
+          </form>
+        </div>
+
+        <!-- Add Inventory Item Card -->
+        <div class="card">
+          <div class="panel-head" style="margin-bottom:14px;">
+            <div class="ptitle"><span class="chip" data-ico="boxes"></span>
+              <h2>Add Inventory Stock</h2>
+            </div>
+          </div>
+          <form id="inp-inv-form">
+            <div class="field"><label>SKU</label><input id="inp-inv-sku" placeholder="e.g. CF-001" required /></div>
+            <div class="field"><label>Item Name</label><input id="inp-inv-name" placeholder="e.g. Arabica Beans"
+                required /></div>
+            <div class="field"><label>Quantity on Hand</label><input id="inp-inv-qty" type="number" min="0"
+                placeholder="e.g. 50" required /></div>
+            <div class="field"><label>Unit</label><input id="inp-inv-unit" placeholder="e.g. kg, pcs, cups" required />
+            </div>
+            <div class="field"><label>Reorder Point</label><input id="inp-inv-reorder" type="number" min="0"
+                placeholder="e.g. 15" required /></div>
+            <button class="btn btn-primary" type="submit" style="width:100%;margin-top:6px;">Add to Inventory</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHAT -->
+    <section class="screen" id="screen-chat">
+      <div class="screen-head">
+        <h1>Chat with CLaiR</h1>
+        <p>Ask about your stock or suppliers</p>
+      </div>
+      <div class="card chat-wrap">
+        <div id="chat-thread">
+          <div class="msg bot">Hi! Ask me about your stock, restock needs, or suppliers.</div>
+        </div>
+        <form class="chat-input" id="chat-form">
+          <input id="chat-in" placeholder="Type a message..." autocomplete="off" />
+          <button class="btn btn-primary" type="submit">Send</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- SUPPLIERS -->
+    <section class="screen" id="screen-suppliers">
+      <div class="screen-head">
+        <h1 id="sp-title">Suppliers</h1>
+        <p>Pin your suppliers on the map</p>
+      </div>
+      <div class="supplier-layout">
+        <div class="card">
+          <div class="map" id="supplier-map"></div>
+          <p class="map-hint">Click anywhere on the map to add a supplier at that spot.</p>
+        </div>
+        <div class="card supplier-cards" id="supplier-cards"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="screen" id="screen-settings">
+      <div class="screen-head">
+        <h1>Settings &amp; Profile</h1>
+        <p>Profile, language, currency</p>
+      </div>
+      <div class="card" style="max-width:560px;">
+        <div class="field"><label>Name</label><input id="set-name" placeholder="Your name" /></div>
+        <div class="field"><label>Business</label><input id="set-biz" placeholder="Your business name" /></div>
+        <div class="field"><label>Role</label>
+          <select id="set-role">
+            <option>Owner</option>
+            <option>Manager</option>
+            <option>Staff</option>
+            <option>Solo founder</option>
+          </select>
+        </div>
+        <div class="field"><label>Language</label>
+          <select id="set-lang">
+            <option>English</option>
+            <option>Bahasa Indonesia</option>
+            <option>Bahasa Melayu</option>
+            <option>Thai</option>
+            <option>Filipino</option>
+            <option>Tiếng Việt</option>
+          </select>
+        </div>
+        <div class="field"><label>Currency</label>
+          <select id="set-curr">
+            <option>USD</option>
+            <option>SGD</option>
+            <option>IDR</option>
+            <option>MYR</option>
+            <option>THB</option>
+            <option>VND</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="set-save">Save</button>
+      </div>
+    </section>
+  </main>
+
+
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (e) { return fallback; } }
+    function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { } }
+
+    let inventory = load('clair_inventory_v1', []);
+    let suppliers = load('clair_suppliers_v1', []);
+    let sales = load('clair_sales_v1', []);
+
+    function fmtMoney(amt) {
+      const cur = (typeof profile !== 'undefined' && profile.currency) ? profile.currency : 'IDR';
+      const n = Number(amt) || 0;
+      if (cur === 'IDR') return 'Rp ' + n.toLocaleString('id-ID');
+      if (cur === 'USD') return '$' + n.toLocaleString('en-US');
+      if (cur === 'SGD') return 'S$' + n.toLocaleString('en-SG');
+      if (cur === 'MYR') return 'RM ' + n.toLocaleString('ms-MY');
+      if (cur === 'THB') return '฿' + n.toLocaleString('th-TH');
+      if (cur === 'VND') return n.toLocaleString('vi-VN') + ' ₫';
+      return cur + ' ' + n.toLocaleString();
+    }
+
+    function recordSale(date, item, qty, rev) {
+      const q = Number(qty) || 0;
+      const r = Number(rev) || 0;
+      sales.push({ date, item, qty: q, rev: r });
+      save('clair_sales_v1', sales);
+
+      const matched = inventory.find(i => i.name.toLowerCase() === item.toLowerCase() || i.sku.toLowerCase() === item.toLowerCase());
+      if (matched) {
+        matched.qty = Math.max(0, matched.qty - q);
+        save('clair_inventory_v1', inventory);
+      }
+      renderAll();
+      toast('Recorded sale: ' + item + ' (' + q + ')');
+    }
+
+    function updateDatalists() {
+      const opts = inventory.map(it => `<option value="${esc(it.name)}">${esc(it.sku)} (${it.qty} ${esc(it.unit)} on hand)</option>`).join('');
+      if ($('hist-item-list')) $('hist-item-list').innerHTML = opts;
+      if ($('inp-sale-list')) $('inp-sale-list').innerHTML = opts;
+    }
+    let userPos = null; // {lat, lng} once the browser shares location
+
+    // ====== Landing <-> app ======
+    function enterApp() { document.body.classList.add('in-app'); history.replaceState(null, '', '#app'); }
+    function goHome() { document.body.classList.remove('in-app'); history.replaceState(null, '', location.pathname); }
+    document.querySelectorAll('[data-enter]').forEach(b => b.onclick = enterApp);
+    $('brand-home').onclick = goHome;
+    if (location.hash === '#app') document.body.classList.add('in-app');
+
+
+    // ====== Landing: smooth-scroll nav ======
+    document.querySelectorAll('[data-scroll]').forEach(b => b.onclick = () => {
+      $(b.dataset.scroll).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // ====== Toast ======
+    const toastEl = $('toast');
+    function toast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      clearTimeout(window.__t);
+      window.__t = setTimeout(() => toastEl.classList.remove('show'), 2200);
+    }
+
+    // ====== Drawer + screen nav ======
+    const drawer = $('drawer'), scrim = $('scrim');
+    $('hamburger').onclick = () => { drawer.classList.add('open'); scrim.classList.add('show'); };
+    $('drawer-close').onclick = () => { drawer.classList.remove('open'); scrim.classList.remove('show'); };
+    scrim.onclick = () => { drawer.classList.remove('open'); scrim.classList.remove('show'); };
+
+    document.querySelectorAll('.nav-item').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const target = btn.dataset.screen;
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        $('screen-' + target).classList.add('active');
+        drawer.classList.remove('open');
+        scrim.classList.remove('show');
+        if (target === 'suppliers') showSuppliers();
+      };
+    });
+
+    // ====== Icons / dates / skeleton helpers ======
+    const ICONS = {
+      'alert-circle': '<circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12.5"/><circle cx="12" cy="16" r=".6" fill="currentColor"/>',
+      'alert-triangle': '<path d="M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13.5"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>',
+      'check-circle': '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/>',
+      'boxes': '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+      'flame': '<path d="M12 3c1 3.5 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z"/>',
+      'target': '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+      'bell': '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.5 20a2 2 0 0 0 3 0"/>',
+      'chart-line': '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>',
+      'receipt': '<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/>',
+      'coins': '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
+      'list': '<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+      'calendar': '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
+      'trash': '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>'
+    };
+    const ico = (n, sz = 20) => `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`;
+    document.querySelectorAll('[data-ico]').forEach(el => { el.innerHTML = ico(el.dataset.ico); });
+
+    const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const fmtToday = (d) => `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`;
+    const fmtMD = (d) => `${MON[d.getMonth()]} ${d.getDate()}`;
+
+    const SK_W = [70, 90, 45, 60, 80, 55];
+    function skRows(cols, n, startAt) {
+      let out = '';
+      for (let r = 0; r < n; r++) {
+        out += '<tr class="sk-row">' + Array.from({ length: cols }, (_, c) =>
+          `<td><span class="sk" style="width:${SK_W[(r + c + (startAt || 0)) % SK_W.length]}%"></span></td>`).join('') + '</tr>';
+      }
+      return out;
+    }
+    function skTable(headers, n, note, title) {
+      return '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>' +
+        skRows(headers.length, n) + '</tbody></table>' + `<div class="sk-note"><b>${title}</b>${note}</div>`;
+    }
+    function goScreen(name) { const b = document.querySelector(`.nav-item[data-screen="${name}"]`); if (b) b.click(); }
+
+    function statusKey(it) {
+      if (it.qty <= 0 || it.qty < it.reorder / 2) return 'critical';
+      if (it.qty < it.reorder) return 'low';
+      return 'good';
+    }
+    const STATUS_UI = { critical: ['Critical', 'alert-circle'], low: ['Low', 'alert-triangle'], good: ['Good', 'check-circle'] };
+    const statusPill = (k) => `<span class="spill ${k}">${ico(STATUS_UI[k][1], 14)}${STATUS_UI[k][0]}</span>`;
+    function statusCounts() {
+      const c = { critical: 0, low: 0, good: 0 };
+      inventory.forEach(it => c[statusKey(it)]++);
+      return c;
+    }
+
+    // ====== Empty forecast graph (axes only, no data) ======
+    let fcRange = '1d';
+    function renderForecastAxis() {
+      const L = 52, R = 690, T = 16, B = 226, now = new Date();
+      let labels;
+      if (fcRange === '1d') labels = ['6am', '9am', '12pm', '3pm', '6pm', '9pm'];
+      else if (fcRange === '1w') labels = Array.from({ length: 7 }, (_, i) => DOW[new Date(now.getTime() + i * 864e5).getDay()]);
+      else labels = Array.from({ length: 6 }, (_, i) => fmtMD(new Date(now.getTime() - (29 - i * 5.8) * 864e5)));
+      const ticks = [100, 75, 50, 25, 0];
+      let g = '';
+      ticks.forEach((v, i) => {
+        const y = T + (B - T) * i / (ticks.length - 1);
+        g += `<line x1="${L}" y1="${y}" x2="${R}" y2="${y}" stroke="${v === 0 ? '#007AFF' : '#D0E4F7'}" stroke-width="${v === 0 ? 1.5 : 1}"/>` +
+          `<text x="${L - 10}" y="${y + 4}" text-anchor="end" font-size="12" fill="#64748B">${v}</text>`;
+      });
+      const step = (R - L) / (labels.length - 1);
+      labels.forEach((t, i) => {
+        const x = L + step * i;
+        g += `<line x1="${x}" y1="${B}" x2="${x}" y2="${B + 5}" stroke="#007AFF"/>` +
+          `<text x="${x}" y="${B + 22}" text-anchor="${i === 0 ? 'start' : i === labels.length - 1 ? 'end' : 'middle'}" font-size="12" fill="#64748B">${t}</text>`;
+      });
+      g += `<line x1="${L}" y1="${T}" x2="${L}" y2="${B}" stroke="#007AFF" stroke-width="1.5"/>`;
+      $('fc-svg').innerHTML = g;
+    }
+
+    // ====== Overview ======
+    function renderOverview() {
+      const now = new Date(), h = now.getHours();
+      const hi = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+      const nm = (typeof profile !== 'undefined' && profile.name) ? ', ' + profile.name : '';
+      $('ov-greet').textContent = hi + nm;
+      $('ov-date').textContent = fmtToday(now);
+      renderForecastAxis();
+      const c = statusCounts();
+      $('ov-risk').textContent = c.critical + c.low;
+      $('ov-good').textContent = c.good;
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const todaySales = sales.filter(s => s.date === todayStr);
+      const todayDemand = todaySales.reduce((acc, s) => acc + (Number(s.qty) || 0), 0);
+      if (todayDemand > 0) {
+        $('ov-demand').textContent = todayDemand + ' units';
+        $('ov-demand').nextElementSibling.textContent = todaySales.length + ' transaction' + (todaySales.length === 1 ? '' : 's') + ' today';
+      } else if (sales.length > 0) {
+        $('ov-demand').textContent = '0 units';
+        $('ov-demand').nextElementSibling.textContent = 'No sales recorded today';
+      } else {
+        $('ov-demand').textContent = '—';
+        $('ov-demand').nextElementSibling.textContent = 'No sales data yet';
+      }
+
+      if (sales.length >= 10) {
+        $('ov-rel').textContent = 'High';
+        $('ov-rel').className = 'val green';
+        $('ov-rel').nextElementSibling.textContent = `${sales.length} transactions recorded`;
+      } else if (sales.length >= 3) {
+        $('ov-rel').textContent = 'Moderate';
+        $('ov-rel').className = 'val amber';
+        $('ov-rel').nextElementSibling.textContent = `${sales.length} transactions recorded`;
+      } else if (sales.length > 0) {
+        $('ov-rel').textContent = 'Learning';
+        $('ov-rel').className = 'val';
+        $('ov-rel').nextElementSibling.textContent = `${sales.length} transaction recorded`;
+      } else {
+        $('ov-rel').textContent = '—';
+        $('ov-rel').className = 'val';
+        $('ov-rel').nextElementSibling.textContent = 'Needs sales history';
+      }
+      const urgent = inventory.filter(it => statusKey(it) !== 'good')
+        .sort((a, b) => (statusKey(a) === 'critical' ? 0 : 1) - (statusKey(b) === 'critical' ? 0 : 1)).slice(0, 3);
+      const total = c.critical + c.low;
+      $('ov-count').textContent = total ? `${total} item${total === 1 ? '' : 's'} need your attention` : '';
+      const host = $('ov-attn');
+      if (!inventory.length) {
+        host.innerHTML = [0, 1].map(i => `<div class="attn" style="border-left-color:#53C5F8;background:#EBF4FB;border-color:#D0E4F7"><span class="sk sk-pill"></span><div class="body"><span class="sk" style="width:${[38, 52][i]}%;margin-bottom:8px"></span><span class="sk" style="width:${[60, 44][i]}%;height:8px"></span></div></div>`).join('') +
+          '<div class="sk-note"><b>Nothing needs attention yet</b>Add items in Inventory and anything running low will show up here.</div>';
+      } else if (!urgent.length) {
+        host.innerHTML = '<div class="sk-note"><b>All clear</b>Every item is above its reorder point.</div>';
+      } else {
+        host.innerHTML = urgent.map(it => {
+          const k = statusKey(it);
+          return `<div class="attn ${k}">${statusPill(k)}<div class="body"><b>${esc(it.name)}</b><small>${it.qty} ${esc(it.unit)} remaining · reorder at ${it.reorder}</small></div>` +
+            `<button class="${k === 'critical' ? 'btn-main' : 'btn-plain'}" data-go-restock>${k === 'critical' ? 'Restock' : 'View'}</button></div>`;
+        }).join('');
+        host.querySelectorAll('[data-go-restock]').forEach(b => b.onclick = () => goScreen('restock'));
+      }
+    }
+    $('ov-all').onclick = () => goScreen('restock');
+
+    // ====== Segmented controls ======
+    let invFilter = 'all', invQuery = '', histDays = 30;
+    document.querySelectorAll('.seg[data-seg] button').forEach(b => b.onclick = () => {
+      b.parentElement.querySelectorAll('button').forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      if (b.dataset.range) { fcRange = b.dataset.range; renderForecastAxis(); }
+      if (b.dataset.days) { histDays = Number(b.dataset.days); renderHistory(); }
+      if (b.dataset.f) { invFilter = b.dataset.f; renderInventory(); }
+    });
+
+    // ====== Sales history & Input Data ======
+    function renderHistory() {
+      const end = new Date(), start = new Date(end.getTime() - (histDays - 1) * 864e5);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      $('hist-range').innerHTML = ico('calendar', 16) + ' ' + fmtMD(start) + ' – ' + fmtMD(end);
+      $('hist-sub').textContent = `Past ${histDays} days`;
+
+      const inRange = sales.filter(s => {
+        const d = new Date(s.date);
+        return !isNaN(d) && d >= start && d <= end;
+      });
+
+      const txCount = inRange.length;
+      const unitsSold = inRange.reduce((acc, s) => acc + (Number(s.qty) || 0), 0);
+      const revenue = inRange.reduce((acc, s) => acc + (Number(s.rev) || 0), 0);
+
+      const prodCounts = {};
+      inRange.forEach(s => {
+        prodCounts[s.item] = (prodCounts[s.item] || 0) + (Number(s.qty) || 0);
+      });
+      let topProd = '—';
+      let maxQty = 0;
+      for (const [p, q] of Object.entries(prodCounts)) {
+        if (q > maxQty) { maxQty = q; topProd = p; }
+      }
+
+      $('hs-tx').textContent = txCount;
+      $('hs-units').textContent = unitsSold.toLocaleString();
+      $('hs-rev').textContent = txCount ? fmtMoney(revenue) : '—';
+      $('hs-top').textContent = topProd;
+
+      const wrap = $('history-card');
+      if (!sales.length) {
+        wrap.innerHTML = skTable(['Date', 'Item', 'Qty', 'Revenue'], 5,
+          'Use "+ Input Data" above to record sales.', 'No sales recorded yet');
+        return;
+      }
+      if (!inRange.length) {
+        wrap.innerHTML = '<div class="sk-note"><b>No transactions in this period</b>Try selecting 30d or 90d, or record a new transaction.</div>';
+        return;
+      }
+
+      const sorted = [...inRange].sort((a, b) => new Date(b.date) - new Date(a.date));
+      wrap.innerHTML = '<table><thead><tr><th>Date</th><th>Item</th><th class="r">Qty</th><th class="r">Revenue</th><th></th></tr></thead><tbody>' +
+        sorted.map(s => {
+          const origIdx = sales.indexOf(s);
+          return `<tr><td style="color:var(--muted);font-size:12px;">${esc(s.date)}</td>` +
+            `<td><b>${esc(s.item)}</b></td>` +
+            `<td class="r">${s.qty}</td>` +
+            `<td class="r price"><b>${fmtMoney(s.rev)}</b></td>` +
+            `<td class="act"><button class="icon-btn del" data-del-sale="${origIdx}" title="Delete transaction">${ico('trash', 16)}</button></td></tr>`;
+        }).join('') + '</tbody></table>';
+
+      wrap.querySelectorAll('[data-del-sale]').forEach(b => b.onclick = () => {
+        sales.splice(Number(b.dataset.delSale), 1);
+        save('clair_sales_v1', sales);
+        renderAll();
+        toast('Transaction removed');
+      });
+    }
+
+    // Hook up history inline form
+    $('hist-new').onclick = () => {
+      const f = $('hist-form');
+      const open = f.style.display === 'none';
+      f.style.display = open ? 'flex' : 'none';
+      if (open) {
+        if (!$('hist-date').value) $('hist-date').value = new Date().toISOString().slice(0, 10);
+        $('hist-name').focus();
+      }
+    };
+    $('hist-form').onsubmit = (e) => {
+      e.preventDefault();
+      recordSale($('hist-date').value, $('hist-name').value.trim(), $('hist-qty').value, $('hist-rev-in').value);
+      $('hist-form').reset();
+      $('hist-date').value = new Date().toISOString().slice(0, 10);
+    };
+
+    // Hook up screen-input-data forms
+    const inpSaleForm = $('inp-sale-form');
+    if (inpSaleForm) {
+      if (!$('inp-sale-date').value) $('inp-sale-date').value = new Date().toISOString().slice(0, 10);
+      inpSaleForm.onsubmit = (e) => {
+        e.preventDefault();
+        recordSale($('inp-sale-date').value, $('inp-sale-item').value.trim(), $('inp-sale-qty').value, $('inp-sale-rev').value);
+        inpSaleForm.reset();
+        $('inp-sale-date').value = new Date().toISOString().slice(0, 10);
+      };
+    }
+
+    const inpInvForm = $('inp-inv-form');
+    if (inpInvForm) {
+      inpInvForm.onsubmit = (e) => {
+        e.preventDefault();
+        const sku = $('inp-inv-sku').value.trim();
+        if (inventory.some(i => i.sku.toLowerCase() === sku.toLowerCase())) { toast('That SKU already exists'); return; }
+        inventory.push({
+          sku, name: $('inp-inv-name').value.trim(), qty: Number($('inp-inv-qty').value),
+          unit: $('inp-inv-unit').value.trim(), reorder: Number($('inp-inv-reorder').value)
+        });
+        save('clair_inventory_v1', inventory);
+        e.target.reset();
+        renderAll();
+        toast('Item added to inventory');
+      };
+    }
+
+    // ====== Inventory ======
+    function renderInventory() {
+      const c = statusCounts(), n = inventory.length;
+      $('inv-date').textContent = 'As of ' + fmtToday(new Date());
+      $('inv-sub').textContent = `${n} item${n === 1 ? '' : 's'} tracked · ${c.critical + c.low} below reorder point`;
+      $('inv-crit').textContent = c.critical; $('inv-low').textContent = c.low; $('inv-good').textContent = c.good; $('inv-total').textContent = n;
+      const counts = { all: n, critical: c.critical, low: c.low, good: c.good };
+      document.querySelectorAll('#inv-tabs button').forEach(b => {
+        b.querySelector('.cnt').textContent = counts[b.dataset.f];
+        b.classList.toggle('on', b.dataset.f === invFilter);
+      });
+      const wrap = $('inv-wrap');
+      const heads = ['Item', 'On hand', 'Daily demand', 'Days left', 'Trend', 'Status'];
+      if (!n) {
+        wrap.innerHTML = skTable(heads, 5, 'Use "+ New item" above to start tracking stock.', 'No inventory yet');
+        return;
+      }
+      const q = invQuery.trim().toLowerCase();
+      const rows = inventory.map((it, i) => ({ it, i, k: statusKey(it) }))
+        .filter(r => (invFilter === 'all' || r.k === invFilter) && (!q || r.it.name.toLowerCase().includes(q) || r.it.sku.toLowerCase().includes(q)));
+      if (!rows.length) { wrap.innerHTML = '<div class="sk-note"><b>No items match</b>Try a different filter or search.</div>'; return; }
+      wrap.innerHTML = '<table><thead><tr><th>Item</th><th class="r">On hand</th><th class="r">Daily demand</th><th class="r">Days left</th><th>Trend</th><th>Status</th><th></th></tr></thead><tbody>' +
+        rows.map(({ it, i, k }) => `<tr class="row-${k}"><td><b>${esc(it.name)}</b><small>${esc(it.sku)}</small></td>` +
+          `<td class="r"><span class="big">${it.qty}</span> <span class="unit">${esc(it.unit)}</span></td><td class="r dim">—</td><td class="r dim">—</td><td class="dim">—</td>` +
+          `<td>${statusPill(k)}</td><td class="act"><button class="icon-btn" data-add="${i}" title="Add stock" style="font-size:22px">+</button>` +
+          `<button class="icon-btn del" data-del-item="${i}" title="Remove item">${ico('trash', 16)}</button></td></tr>`).join('') + '</tbody></table>';
+      wrap.querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
+        const it = inventory[Number(b.dataset.add)];
+        const v = parseInt(prompt(`Add how many ${it.unit} of ${it.name}?`), 10);
+        if (!v || v <= 0) return;
+        it.qty += v; save('clair_inventory_v1', inventory); renderAll(); toast('Added ' + v + ' to ' + it.sku);
+      });
+      wrap.querySelectorAll('[data-del-item]').forEach(b => b.onclick = () => {
+        inventory.splice(Number(b.dataset.delItem), 1);
+        save('clair_inventory_v1', inventory); renderAll();
+      });
+    }
+    $('inv-search').oninput = (e) => { invQuery = e.target.value; renderInventory(); };
+    $('inv-new').onclick = () => {
+      const f = $('inv-form');
+      const open = f.style.display === 'none';
+      f.style.display = open ? 'flex' : 'none';
+      if (open) $('inv-sku').focus();
+    };
+    $('inv-form').onsubmit = (e) => {
+      e.preventDefault();
+      const sku = $('inv-sku').value.trim();
+      if (inventory.some(i => i.sku.toLowerCase() === sku.toLowerCase())) { toast('That SKU already exists'); return; }
+      inventory.push({
+        sku, name: $('inv-name').value.trim(), qty: Number($('inv-qty').value),
+        unit: $('inv-unit').value.trim(), reorder: Number($('inv-reorder').value)
+      });
+      save('clair_inventory_v1', inventory);
+      e.target.reset();
+      renderAll();
+      toast('Item added');
+    };
+
+    // ====== Restock ======
+    function restockList() { return inventory.filter(it => it.qty < it.reorder); }
+    function renderRestock() {
+      const wrap = $('restock-wrap');
+      const low = restockList();
+      if (!inventory.length) {
+        wrap.innerHTML = skTable(['SKU', 'Item', 'On Hand', 'Reorder Pt', 'Suggested Qty'], 4, 'Add items to Inventory and CLaiR will flag the ones that fall below their reorder point.', 'Nothing to restock yet');
+      } else if (!low.length) {
+        wrap.innerHTML = skTable(['SKU', 'Item', 'On Hand', 'Reorder Pt', 'Suggested Qty'], 3, 'No items are below their reorder point right now.', 'All stocked up');
+      } else {
+        wrap.innerHTML = '<table><thead><tr><th>SKU</th><th>Item</th><th>On Hand</th><th>Reorder Pt</th><th>Suggested Qty</th></tr></thead><tbody>' +
+          low.map(it => `<tr><td>${esc(it.sku)}</td><td>${esc(it.name)}</td><td>${it.qty}</td><td>${it.reorder}</td><td><b>${it.reorder - it.qty}</b></td></tr>`).join('') +
+          '</tbody></table>';
+      }
+      const sel = $('restock-sku');
+      sel.innerHTML = inventory.length
+        ? inventory.map(it => `<option value="${esc(it.sku)}">${esc(it.sku)} ${esc(it.name)}</option>`).join('')
+        : '<option value="">No items yet</option>';
+      $('restock-form').style.display = inventory.length ? 'flex' : 'none';
+    }
+    $('restock-form').onsubmit = (e) => {
+      e.preventDefault();
+      const qty = parseInt($('restock-qty').value, 10) || 0;
+      const it = inventory.find(i => i.sku === $('restock-sku').value);
+      if (!it || qty <= 0) return;
+      it.qty += qty;
+      save('clair_inventory_v1', inventory);
+      e.target.reset();
+      renderAll();
+      toast('Added ' + qty + ' to ' + it.sku);
+    };
+
+    // ====== Suppliers + real map (Leaflet / OpenStreetMap) ======
+    let map = null, markerLayer = null, youMarker = null;
+    const DEFAULT_CENTER = [-6.2088, 106.8456]; // Jakarta, used until the browser shares a location
+
+    function distKm(a, b) {
+      const R = 6371, rad = d => d * Math.PI / 180;
+      const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    }
+
+    function renderSupplierCards() {
+      const host = $('supplier-cards');
+      if (!suppliers.length) {
+        host.innerHTML = [0, 1, 2].map(i => `<div class="sup-card sk-card"><span class="sk" style="width:${[60, 45, 70][i]}%"></span><span class="sk" style="width:${[35, 50, 30][i]}%;height:8px"></span></div>`).join('') +
+          '<div class="sk-note"><b>No suppliers yet</b>Click the map to pin your first supplier.</div>';
+        return;
+      }
+      host.innerHTML = suppliers.map((s, i) => {
+        const d = userPos ? ' · ' + distKm(userPos, s).toFixed(1) + ' km away' : '';
+        return `<div class="sup-card"><div class="top"><b>${esc(s.name)}</b><button class="btn-sm" data-del-sup="${i}">Remove</button></div>` +
+          `<div class="meta">${esc(s.category || 'Supplier')}${d}</div></div>`;
+      }).join('');
+      host.querySelectorAll('[data-del-sup]').forEach(b => b.onclick = () => {
+        suppliers.splice(Number(b.dataset.delSup), 1);
+        save('clair_suppliers_v1', suppliers);
+        renderSuppliers();
+      });
+    }
+
+    function renderMarkers() {
+      if (!map) return;
+      markerLayer.clearLayers();
+      suppliers.forEach(s => {
+        L.circleMarker([s.lat, s.lng], { radius: 8, color: '#fff', weight: 2, fillColor: '#007AFF', fillOpacity: 1 })
+          .bindTooltip(esc(s.name), { permanent: true, direction: 'bottom', offset: [0, 6] })
+          .addTo(markerLayer);
+      });
+    }
+
+    function renderSuppliers() { renderSupplierCards(); renderMarkers(); }
+
+    function showSuppliers() {
+      if (typeof L === 'undefined') {
+        $('supplier-map').innerHTML = '<div class="empty-note"><b>Map could not load</b>Check your internet connection and reload the page.</div>';
+        renderSupplierCards();
+        return;
+      }
+      if (!map) {
+        map = L.map('supplier-map').setView(DEFAULT_CENTER, 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        markerLayer = L.layerGroup().addTo(map);
+        map.on('click', (ev) => {
+          const name = prompt('Supplier name?');
+          if (!name || !name.trim()) return;
+          const category = prompt('Category (e.g. Coffee, Dairy, Packaging)?') || '';
+          suppliers.push({ name: name.trim(), category: category.trim(), lat: ev.latlng.lat, lng: ev.latlng.lng });
+          save('clair_suppliers_v1', suppliers);
+          renderSuppliers();
+        });
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition((p) => {
+            userPos = { lat: p.coords.latitude, lng: p.coords.longitude };
+            map.setView([userPos.lat, userPos.lng], 13);
+            youMarker = L.circleMarker([userPos.lat, userPos.lng], { radius: 8, color: '#fff', weight: 2, fillColor: '#53C5F8', fillOpacity: 1 })
+              .bindTooltip('You', { permanent: true, direction: 'bottom', offset: [0, 6] }).addTo(map);
+            renderSupplierCards();
+          }, () => { }, { timeout: 8000 });
+        }
+      }
+      // The map sits in a hidden screen until now, so it must re-measure its container.
+      setTimeout(() => {
+        map.invalidateSize();
+        if (suppliers.length && !userPos) map.fitBounds(suppliers.map(s => [s.lat, s.lng]), { padding: [40, 40], maxZoom: 15 });
+      }, 50);
+      renderSuppliers();
+    }
+
+    // ====== Chat (answers come from the user's own data) ======
+    $('chat-form').onsubmit = (e) => {
+      e.preventDefault();
+      const input = $('chat-in');
+      const text = input.value.trim();
+      if (!text) return;
+      const thread = $('chat-thread');
+      const div = document.createElement('div');
+      div.className = 'msg user';
+      div.textContent = text;
+      thread.appendChild(div);
+      input.value = '';
+      setTimeout(() => {
+        const bot = document.createElement('div');
+        bot.className = 'msg bot';
+        bot.textContent = localReply(text);
+        thread.appendChild(bot);
+        thread.scrollTop = thread.scrollHeight;
+      }, 400);
+      thread.scrollTop = thread.scrollHeight;
+    };
+    function localReply(q) {
+      const l = q.toLowerCase();
+      if (!inventory.length && !suppliers.length) return "I don't have any data yet. Add items in Inventory and suppliers on the map, then ask me again.";
+      if (l.includes('restock') || l.includes('reorder') || l.includes('low') || l.includes('stock')) {
+        const low = restockList();
+        if (!inventory.length) return 'There is no inventory yet, so nothing to restock.';
+        return low.length
+          ? 'Below reorder point: ' + low.map(i => `${i.name} (${i.qty} ${i.unit}, reorder at ${i.reorder})`).join(', ') + '.'
+          : 'Everything is at or above its reorder point.';
+      }
+      if (l.includes('supplier')) {
+        return suppliers.length ? 'Your suppliers: ' + suppliers.map(s => s.name).join(', ') + '.' : 'No suppliers have been added yet. Click the map on the Suppliers screen to add one.';
+      }
+      if (l.includes('forecast') || l.includes('predict') || l.includes('sales')) {
+        if (!sales.length) return 'There is no sales history yet, so I cannot forecast. Use Input Data to record sales first.';
+        const totalUnits = sales.reduce((a, s) => a + (Number(s.qty) || 0), 0);
+        return `Based on ${sales.length} recorded transaction(s) (${totalUnits} total units sold), demand is tracking steadily. Keep logging sales for higher forecast accuracy.`;
+      }
+      return "I can answer questions about your stock, restock needs, and suppliers.";
+    }
+
+
+
+    // ====== Profile / Settings ======
+    const profile = load('clair_profile_v1', { name: '', business: '', role: 'Owner', locale: 'English', currency: 'IDR' });
+    function applyProfile() {
+      $('set-name').value = profile.name || '';
+      $('set-biz').value = profile.business || '';
+      $('set-role').value = profile.role || 'Owner';
+      $('set-lang').value = profile.locale || 'English';
+      $('set-curr').value = profile.currency || 'IDR';
+      $('lang-top').value = profile.locale || 'English';
+      $('curr-top').value = profile.currency || 'IDR';
+      $('top-name').textContent = profile.name || 'Guest';
+      $('top-avatar').textContent = (profile.name || '?').slice(0, 1).toUpperCase();
+      renderOverview();
+    }
+    applyProfile();
+    $('set-save').onclick = () => {
+      Object.assign(profile, {
+        name: $('set-name').value.trim(), business: $('set-biz').value.trim(), role: $('set-role').value,
+        locale: $('set-lang').value, currency: $('set-curr').value
+      });
+      save('clair_profile_v1', profile);
+      applyProfile();
+      toast('Settings saved');
+    };
+    $('lang-top').onchange = (e) => { $('set-lang').value = e.target.value; };
+    $('curr-top').onchange = (e) => { $('set-curr').value = e.target.value; };
+
+    function renderAll() { renderOverview(); renderInventory(); renderRestock(); renderHistory(); updateDatalists(); }
+    renderAll();
+  </script>
+</body>
+
+</html>
