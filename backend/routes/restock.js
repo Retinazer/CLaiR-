@@ -23,12 +23,11 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Valid SKU and positive quantity are required' });
     }
     const updated = store.updateInventoryStock(sku, q);
+    const { calculateItemMetrics } = require('../services/analyticsService');
+    const enhanced = calculateItemMetrics(updated, store.getSales(), store.getSuppliers());
     res.json({
       success: true,
-      item: {
-        ...updated,
-        status: getItemStatus(updated)
-      }
+      item: enhanced
     });
   } catch (err) {
     res.status(400).json({ error: err.message });

@@ -241,7 +241,10 @@ async function renderForecastChart() {
     const fc = await API.getForecast(fcRange, fcGranularity);
     if (!fc) return;
 
-    // Update Model Badge
+    // 1. Immediately render the SVG Forecast Chart so it is never delayed or blocked
+    renderSvgForecast(fc);
+
+    // 2. Safe Update Model Badge
     const badge = $('fc-model-badge');
     const pill = $('fc-threshold-pill');
     const insights = $('fc-insights');
@@ -262,55 +265,58 @@ async function renderForecastChart() {
       }
     }
 
+    const gran = (fc.granularity || 'daily').toLowerCase();
+    const stepUnit = gran === 'hourly' ? 'hrs' : 'days';
+    const thresholds = fc.thresholds || { currentSteps: 0, minSteps: 3, richSteps: 14, richTransactions: 14, progressPercent: 0 };
+    const dataVol = fc.dataVolume || { totalTransactions: 0, totalQuantity: 0, intermittencyPercent: 0 };
+
     if (pill) {
-      const stepUnit = fc.granularity === 'hourly' ? 'hrs' : 'days';
       if (fc.activeModel === 'SARIMAX') {
-        pill.textContent = `${fc.thresholds.currentSteps} ${stepUnit} · ${fc.dataVolume.totalTransactions} tx (Rich Regime)`;
+        pill.textContent = `${thresholds.currentSteps} ${stepUnit} · ${dataVol.totalTransactions} tx (Rich Regime)`;
       } else if (fc.activeModel === 'CROSTON') {
-        pill.textContent = `${fc.dataVolume.intermittencyPercent}% zero-demand (${fc.dataVolume.totalTransactions} tx · Intermittent)`;
+        pill.textContent = `${dataVol.intermittencyPercent}% zero-demand (${dataVol.totalTransactions} tx · Intermittent)`;
       } else if (fc.activeModel === 'ETS') {
-        pill.textContent = `${fc.thresholds.currentSteps} ${stepUnit} · ${fc.dataVolume.totalTransactions} tx (Sparse/Moderate)`;
+        pill.textContent = `${thresholds.currentSteps} ${stepUnit} · ${dataVol.totalTransactions} tx (Sparse/Moderate)`;
       } else {
-        pill.textContent = `${fc.thresholds.currentSteps} / ${fc.thresholds.minSteps} ${stepUnit} (${fc.dataVolume.totalTransactions} tx)`;
+        pill.textContent = `${thresholds.currentSteps} / ${thresholds.minSteps} ${stepUnit} (${dataVol.totalTransactions} tx)`;
       }
     }
 
     if (insights) {
-      if (fc.activeModel === 'NONE') {
+      if (!fc.activeModel || fc.activeModel === 'NONE') {
         insights.style.display = 'none';
       } else {
         insights.style.display = 'flex';
-        const sumPred = fc.forecast.predictions.reduce((a, b) => a + b, 0);
-        const stepUnit = fc.granularity === 'hourly' ? 'hours' : 'days';
+        const preds = (fc.forecast && Array.isArray(fc.forecast.predictions)) ? fc.forecast.predictions : [];
+        const sumPred = preds.reduce((a, b) => a + b, 0);
+        const metrics = fc.metrics || {};
         insights.innerHTML = `
         <div class="fi-top">
           <div class="fi-title">
             <i class="fa-solid fa-chart-line" style="color:var(--primary)"></i>
-            <span>${esc(fc.activeModel)} (${esc(fc.granularity.toUpperCase())})</span>
+            <span>${esc(fc.activeModel)} (${esc(gran.toUpperCase())})</span>
           </div>
           <span class="threshold-pill">2D Volume &amp; Temporal Cycles Matrix</span>
         </div>
-        <div class="fi-desc">${esc(fc.rationale)}</div>
+        <div class="fi-desc">${esc(fc.rationale || '')}</div>
         <div class="threshold-bar">
-          <div class="threshold-progress" style="width: ${fc.thresholds.progressPercent}%"></div>
+          <div class="threshold-progress" style="width: ${thresholds.progressPercent || 0}%"></div>
         </div>
         <div class="threshold-markers">
           <span>0 (Start)</span>
-          <span>Threshold 1: ${fc.thresholds.minSteps} ${stepUnit} (ETS)</span>
-          <span>Threshold 2: ${fc.thresholds.richSteps} ${stepUnit} &amp; ${fc.thresholds.richTransactions} tx (SARIMAX)</span>
+          <span>Threshold 1: ${thresholds.minSteps || 3} ${stepUnit} (ETS)</span>
+          <span>Threshold 2: ${thresholds.richSteps || 14} ${stepUnit} &amp; ${thresholds.richTransactions || 14} tx (SARIMAX)</span>
         </div>
         <div class="fi-metrics">
-          <div class="fi-metric">Active Model: <b>${esc(fc.metrics.modelDetails || fc.activeModel)}</b></div>
-          <div class="fi-metric">Data Volume: <b>${fc.dataVolume.totalTransactions} tx (${fc.dataVolume.totalQuantity} units)</b></div>
-          <div class="fi-metric">Demand Density: <b>${100 - fc.dataVolume.intermittencyPercent}% active (${fc.dataVolume.intermittencyPercent}% zeros)</b></div>
-          <div class="fi-metric">Mean Absolute Error (MAE): <b>${fc.metrics.mae}</b></div>
+          <div class="fi-metric">Active Model: <b>${esc(metrics.modelDetails || fc.activeModel)}</b></div>
+          <div class="fi-metric">Data Volume: <b>${dataVol.totalTransactions} tx (${dataVol.totalQuantity} units)</b></div>
+          <div class="fi-metric">Demand Density: <b>${100 - (dataVol.intermittencyPercent || 0)}% active (${dataVol.intermittencyPercent || 0}% zeros)</b></div>
+          <div class="fi-metric">Mean Absolute Error (MAE): <b>${metrics.mae != null ? metrics.mae : '—'}</b></div>
           <div class="fi-metric">Projected Period Demand: <b>${Math.round(sumPred)} units</b></div>
         </div>
       `;
       }
     }
-
-    renderSvgForecast(fc);
   } catch (err) {
     console.error('Forecast render error:', err);
   }
@@ -366,13 +372,13 @@ async function renderOverview() {
           .join('') +
         '<div class="sk-note"><b>Nothing needs attention yet</b>Add items in Inventory and anything running low will show up here.</div>';
     } else if (!ov.urgentItems || !ov.urgentItems.length) {
-      host.innerHTML = '<div class="sk-note"><b>All clear</b>Every item is above its reorder point.</div>';
+      host.innerHTML = '<div class="sk-note"><b>All clear</b>Every item is above its auto-configured reorder point.</div>';
     } else {
       host.innerHTML = ov.urgentItems
         .map((it) => {
           const k = it.status || statusKey(it);
           return (
-            `<div class="attn ${k}">${statusPill(k)}<div class="body"><b>${esc(it.name)}</b><small>${it.qty} ${esc(it.unit)} remaining · reorder at ${it.reorder}</small></div>` +
+            `<div class="attn ${k}">${statusPill(k)}<div class="body"><b>${esc(it.name)}</b><small>${it.qty} ${esc(it.unit)} remaining · auto-reorder at ${it.reorder}</small></div>` +
             `<button class="${k === 'critical' ? 'btn-main' : 'btn-plain'}" data-go-restock>${k === 'critical' ? 'Restock' : 'View'}</button></div>`
           );
         })
@@ -397,7 +403,7 @@ function statusCounts() {
 function renderInventory() {
   const c = statusCounts(), n = inventory.length;
   $('inv-date').textContent = 'As of ' + fmtToday(new Date());
-  $('inv-sub').textContent = `${n} item${n === 1 ? '' : 's'} tracked · ${c.critical + c.low} below reorder point`;
+  $('inv-sub').textContent = `${n} item${n === 1 ? '' : 's'} tracked · ${c.critical + c.low} below auto reorder point`;
   $('inv-crit').textContent = c.critical;
   $('inv-low').textContent = c.low;
   $('inv-good').textContent = c.good;
@@ -410,7 +416,7 @@ function renderInventory() {
   });
 
   const wrap = $('inv-wrap');
-  const heads = ['Item', 'On hand', 'Daily demand', 'Days left', 'Trend', 'Status'];
+  const heads = ['Item', 'On hand', 'Daily demand', 'Days left', 'Auto Reorder Pt', 'Status'];
   if (!n) {
     wrap.innerHTML = skTable(heads, 5, 'Use "+ New item" above to start tracking stock.', 'No inventory yet');
     return;
@@ -431,12 +437,15 @@ function renderInventory() {
   }
 
   wrap.innerHTML =
-    '<table><thead><tr><th>Item</th><th class="r">On hand</th><th class="r">Daily demand</th><th class="r">Days left</th><th>Trend</th><th>Status</th><th></th></tr></thead><tbody>' +
+    '<table><thead><tr><th>Item</th><th class="r">On hand</th><th class="r">Daily demand</th><th class="r">Days left</th><th class="r">Auto Reorder Pt</th><th>Status</th><th></th></tr></thead><tbody>' +
     rows
       .map(
         ({ it, k }) =>
           `<tr class="row-${k}"><td><b>${esc(it.name)}</b><small>${esc(it.sku)}</small></td>` +
-          `<td class="r"><span class="big">${it.qty}</span> <span class="unit">${esc(it.unit)}</span></td><td class="r dim">—</td><td class="r dim">—</td><td class="dim">—</td>` +
+          `<td class="r"><span class="big">${it.qty}</span> <span class="unit">${esc(it.unit)}</span></td>` +
+          `<td class="r">${it.dailyDemand != null ? `${it.dailyDemand} <span class="unit">${esc(it.unit)}/d</span>` : '<span class="dim">—</span>'}</td>` +
+          `<td class="r">${it.daysOfStock != null ? `<b>${it.daysOfStock}</b> d` : '<span class="dim">—</span>'}</td>` +
+          `<td class="r"><span class="badge-rop" title="Auto-configured by lead time & demand variance">${it.reorder} ${esc(it.unit)}</span></td>` +
           `<td>${statusPill(k)}</td><td class="act"><button class="icon-btn" data-add-sku="${esc(it.sku)}" title="Add stock" style="font-size:22px">+</button>` +
           `<button class="icon-btn del" data-del-sku="${esc(it.sku)}" title="Remove item">${ico('trash', 16)}</button></td></tr>`
       )
@@ -488,29 +497,33 @@ function restockList() {
 function renderRestock() {
   const wrap = $('restock-wrap');
   const low = restockList();
+  const heads = ['SKU', 'Item', 'On Hand', 'Auto Reorder Pt', 'Safety Stock', 'Suggested Qty'];
   if (!inventory.length) {
     wrap.innerHTML = skTable(
-      ['SKU', 'Item', 'On Hand', 'Reorder Pt', 'Suggested Qty'],
+      heads,
       4,
-      'Add items to Inventory and CLaiR will flag the ones that fall below their reorder point.',
+      'Add items to Inventory and CLaiR will flag the ones that fall below their auto-configured reorder point.',
       'Nothing to restock yet'
     );
   } else if (!low.length) {
     wrap.innerHTML = skTable(
-      ['SKU', 'Item', 'On Hand', 'Reorder Pt', 'Suggested Qty'],
+      heads,
       3,
-      'No items are below their reorder point right now.',
+      'Every item is above its auto-configured reorder point right now.',
       'All stocked up'
     );
   } else {
     wrap.innerHTML =
-      '<table><thead><tr><th>SKU</th><th>Item</th><th>On Hand</th><th>Reorder Pt</th><th>Suggested Qty</th></tr></thead><tbody>' +
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;background:#EBF4FB;padding:8px 14px;border-radius:10px;border:1px solid #D0E4F7;display:flex;align-items:center;gap:8px;">' +
+      '<i class="fa-solid fa-wand-magic-sparkles" style="color:var(--primary);font-size:14px;"></i> <span><b>Algorithmic Safety Level:</b> Reorder points are continuously tuned via <code>(Lead Time × Daily Demand) + Safety Stock (95% Service Level)</code>.</span></div>' +
+      '<table><thead><tr><th>SKU</th><th>Item</th><th>On Hand</th><th>Auto Reorder Pt</th><th>Safety Stock</th><th>Suggested Qty</th></tr></thead><tbody>' +
       low
         .map(
           (it) =>
-            `<tr><td>${esc(it.sku)}</td><td>${esc(it.name)}</td><td>${it.qty}</td><td>${it.reorder}</td><td><b>${
-              it.reorder - it.qty
-            }</b></td></tr>`
+            `<tr><td><b>${esc(it.sku)}</b></td><td>${esc(it.name)}</td><td>${it.qty} ${esc(it.unit)}</td>` +
+            `<td><span class="badge-rop" title="Auto-configured by lead time & demand variance">${it.reorder} ${esc(it.unit)}</span></td>` +
+            `<td>${it.safetyStock != null ? `${it.safetyStock} ${esc(it.unit)}` : '—'}</td>` +
+            `<td><b style="color:var(--primary)">${it.suggestedQty || Math.max(0, it.reorder * 2 - it.qty)} ${esc(it.unit)}</b></td></tr>`
         )
         .join('') +
       '</tbody></table>';
@@ -903,10 +916,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const name = $('inv-name').value.trim();
     const qty = Number($('inv-qty').value);
     const unit = $('inv-unit').value.trim();
-    const reorder = Number($('inv-reorder').value);
     try {
-      await API.addInventoryItem({ sku, name, qty, unit, reorder });
-      toast('Item added');
+      const res = await API.addInventoryItem({ sku, name, qty, unit });
+      toast(`Item added with auto-configured reorder point: ${res.reorder || 'Auto'}`);
       $('inv-form').reset();
       $('inv-form').style.display = 'none';
       await Promise.all([syncInventory(), renderOverview()]);

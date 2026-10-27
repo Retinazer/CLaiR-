@@ -330,7 +330,7 @@
         </div>
         <div class="chart-frame">
           <div class="chart" id="forecast-chart">
-            <svg id="fc-svg" viewBox="0 0 700 270" role="img" aria-label="Demand forecast chart"></svg>
+            <svg id="fc-svg" width="100%" height="270" viewBox="0 0 700 270" role="img" aria-label="Demand forecast chart"></svg>
           </div>
         </div>
         <div class="forecast-insights" id="fc-insights"></div>
@@ -429,13 +429,16 @@
             <h2>Current stock</h2>
           </div><button class="btn-main" id="inv-new">+ New item</button>
         </div>
-        <form id="inv-form" class="inline-form" style="display:none; margin: 0 0 18px;">
+        <form id="inv-form" class="inline-form" style="display:none; margin: 0 0 18px; flex-wrap: wrap;">
           <input id="inv-sku" placeholder="SKU" required style="width:100px;" />
           <input id="inv-name" placeholder="Item name" required style="flex:1; min-width:140px;" />
           <input id="inv-qty" type="number" min="0" placeholder="On hand" required style="width:115px;" />
           <input id="inv-unit" placeholder="Unit (g, ml, pcs)" required style="width:160px;" />
-          <input id="inv-reorder" type="number" min="0" placeholder="Reorder point" required style="width:140px;" />
           <button class="btn btn-primary" type="submit">Add item</button>
+          <div style="width: 100%; font-size: 12px; color: var(--muted); margin-top: 6px;">
+            <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--primary); margin-right:4px;"></i>
+            Reorder points are automatically configured and continually updated through CLaiR's statistical forecasting algorithm.
+          </div>
         </form>
         <div class="toolbar">
           <div class="seg" id="inv-tabs" data-seg>
@@ -454,7 +457,7 @@
     <section class="screen" id="screen-restock">
       <div class="screen-head">
         <h1>Restock Signals</h1>
-        <p>Items below reorder point</p>
+        <p>Items below auto-configured reorder point</p>
       </div>
       <div class="card">
         <div id="restock-wrap"></div>

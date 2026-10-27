@@ -71,10 +71,66 @@ function skTable(headers, n, note, title) {
   );
 }
 
+// Algorithmic Automatic Reorder Point (ROP) Calculator
+function calcAutoReorder(it, sales = [], suppliers = []) {
+  if (it.reorderAuto && it.reorder != null) return it.reorder;
+
+  const itemName = String(it.name || '').trim().toLowerCase();
+  const itemSku = String(it.sku || '').trim().toLowerCase();
+
+  let leadTime = 3;
+  if (Array.isArray(suppliers) && suppliers.length > 0) {
+    const matched = suppliers.find((s) => {
+      const cat = String(s.category || '').toLowerCase();
+      const n = String(s.name || '').toLowerCase();
+      return cat.includes(itemName) || itemName.includes(cat) || n.includes(itemName);
+    });
+    if (matched && Number(matched.leadTimeDays)) leadTime = Math.max(1, Number(matched.leadTimeDays));
+  }
+
+  const txs = (sales || []).filter((s) => {
+    const si = String(s.item || '').trim().toLowerCase();
+    return si === itemName || si === itemSku;
+  });
+
+  if (txs.length > 0) {
+    const dailyMap = {};
+    txs.forEach((s) => {
+      dailyMap[s.date] = (dailyMap[s.date] || 0) + (Number(s.qty) || 0);
+    });
+    const dates = Object.keys(dailyMap).sort();
+    const firstDate = new Date(dates[0] + 'T12:00:00Z');
+    const lastDate = new Date(dates[dates.length - 1] + 'T12:00:00Z');
+    const spanDays = Math.max(1, Math.round((lastDate - firstDate) / 864e5) + 1);
+
+    const dailyVals = Object.values(dailyMap);
+    const totalQty = dailyVals.reduce((a, b) => a + b, 0);
+    const dailyDemand = totalQty / spanDays;
+
+    let sumSq = 0;
+    dailyVals.forEach((v) => { sumSq += Math.pow(v - dailyDemand, 2); });
+    const zeroDays = Math.max(0, spanDays - dailyVals.length);
+    sumSq += zeroDays * Math.pow(0 - dailyDemand, 2);
+    const stdDev = Math.sqrt(sumSq / spanDays);
+
+    const Z = 1.65; // 95% service level
+    let ss = Math.ceil(Z * Math.sqrt(leadTime) * stdDev);
+    ss = Math.max(1, ss, Math.ceil(dailyDemand * 0.5));
+    const rop = Math.ceil(dailyDemand * leadTime + ss);
+    return Math.max(1, rop);
+  }
+
+  // Cold start baseline
+  const onHand = Number(it.qty) || 0;
+  return Math.max(2, Math.round(onHand * 0.25));
+}
+
 // Inventory status indicators
 function statusKey(it) {
-  if (it.qty <= 0 || it.qty < it.reorder / 2) return 'critical';
-  if (it.qty < it.reorder) return 'low';
+  if (it.status) return it.status;
+  const rop = it.reorder != null ? it.reorder : calcAutoReorder(it);
+  if (it.qty <= 0 || it.qty < rop / 2) return 'critical';
+  if (it.qty < rop) return 'low';
   return 'good';
 }
 

@@ -4,7 +4,9 @@
  */
 
 const API = {
-  baseUrl: window.location.origin.startsWith('http') ? '' : 'http://localhost:3000',
+  baseUrl: (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http') && (window.location.port === '3000' || window.location.port === ''))
+    ? ''
+    : 'http://localhost:3000',
 
   async request(endpoint, options = {}) {
     const url = `${this.baseUrl}${endpoint}`;
@@ -153,24 +155,40 @@ const API = {
     const load = (k, fb) => { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch (e) { return fb; } };
     const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } };
 
-    let inv = load('clair_inventory_v1', []);
+    let inv = load('clair_inventory_v1', [
+      { sku: 'COF-01', name: 'Arabica Beans', qty: 45, unit: 'kg' }
+    ]);
     let sales = load('clair_sales_v1', []);
     let sups = load('clair_suppliers_v1', []);
     let prof = load('clair_profile_v1', { name: '', business: '', role: 'Owner', locale: 'English', currency: 'IDR' });
 
+    const enhanceItem = (i) => {
+      const rop = typeof calcAutoReorder === 'function' ? calcAutoReorder(i, sales, sups) : Math.max(2, Math.round((i.qty || 10) * 0.25));
+      const k = i.qty <= 0 || i.qty < rop / 2 ? 'critical' : i.qty < rop ? 'low' : 'good';
+      return {
+        ...i,
+        reorder: rop,
+        autoReorder: rop,
+        reorderAuto: true,
+        status: k,
+        suggestedQty: Math.max(0, rop * 2 - i.qty)
+      };
+    };
+
     if (endpoint.startsWith('/api/inventory')) {
-      if (method === 'GET') return inv;
+      if (method === 'GET') return inv.map(enhanceItem);
       if (method === 'POST') {
         const item = JSON.parse(options.body);
-        inv.push(item);
+        const enhanced = enhanceItem(item);
+        inv.push(enhanced);
         save('clair_inventory_v1', inv);
-        return item;
+        return enhanced;
       }
       if (method === 'PATCH') {
         const sku = decodeURIComponent(endpoint.split('/')[3]);
         const { delta } = JSON.parse(options.body);
         const it = inv.find(i => i.sku.toLowerCase() === sku.toLowerCase());
-        if (it) { it.qty += delta; save('clair_inventory_v1', inv); return it; }
+        if (it) { it.qty += delta; save('clair_inventory_v1', inv); return enhanceItem(it); }
       }
       if (method === 'DELETE') {
         const sku = decodeURIComponent(endpoint.split('/')[3]);
@@ -228,8 +246,9 @@ const API = {
     }
 
     if (endpoint.startsWith('/api/overview')) {
+      const enhancedInv = inv.map(enhanceItem);
       const counts = { critical: 0, low: 0, good: 0 };
-      inv.forEach(i => counts[statusKey(i)]++);
+      enhancedInv.forEach(i => counts[i.status]++);
       return {
         greeting: 'Good day, ' + (prof.name || 'Guest'),
         riskCount: counts.critical + counts.low,
@@ -239,8 +258,13 @@ const API = {
         reliability: sales.length > 5 ? 'High' : 'Learning',
         reliabilityText: `${sales.length} transactions recorded`,
         urgentCount: counts.critical + counts.low,
-        urgentItems: inv.filter(i => statusKey(i) !== 'good').slice(0, 3)
+        urgentItems: enhancedInv.filter(i => i.status !== 'good').slice(0, 3)
       };
+    }
+
+    if (endpoint.startsWith('/api/restock')) {
+      const enhancedInv = inv.map(enhanceItem);
+      return enhancedInv.filter(i => i.qty < i.reorder);
     }
 
     if (endpoint.startsWith('/api/forecast')) {
@@ -248,6 +272,15 @@ const API = {
       const isRich = distinctDays >= 14;
       const isSparse = distinctDays >= 3;
       const model = isRich ? 'SARIMAX' : isSparse ? 'ETS' : 'NONE';
+      const lastDate = sales.length ? new Date(sales[sales.length - 1].date) : new Date();
+      const predDates = [];
+      const predVals = [];
+      for (let i = 1; i <= 7; i++) {
+        const nextD = new Date(lastDate);
+        nextD.setDate(lastDate.getDate() + i);
+        predDates.push(nextD.toISOString().slice(0, 10));
+        predVals.push(Math.round(10 + Math.sin(i) * 4));
+      }
       return {
         activeModel: model,
         regime: isRich ? 'rich' : isSparse ? 'sparse' : 'insufficient',
@@ -256,21 +289,34 @@ const API = {
           : isSparse
           ? 'Sparse Data Regime (<14 days). ETS active.'
           : 'Insufficient data (<3 days).',
+        granularity: 'daily',
+        dataVolume: {
+          totalTransactions: sales.length,
+          totalQuantity: sales.reduce((a, b) => a + (Number(b.qty) || 0), 0),
+          timeSteps: distinctDays,
+          activePeriods: distinctDays,
+          zeroCount: 0,
+          zeroRatio: 0,
+          intermittencyPercent: 0
+        },
         thresholds: {
-          sparseThreshold: 3,
-          richThreshold: 14,
-          currentPoints: distinctDays,
-          pointsNeededForRich: Math.max(0, 14 - distinctDays),
+          minSteps: 3,
+          richSteps: 14,
+          minTransactions: 3,
+          richTransactions: 14,
+          currentSteps: distinctDays,
+          currentTransactions: sales.length,
+          stepsNeededForRich: Math.max(0, 14 - distinctDays),
+          txNeededForRich: Math.max(0, 14 - sales.length),
           progressPercent: Math.min(100, Math.round((distinctDays / 14) * 100))
         },
-        timeline: { dates: sales.map((s) => s.date), values: sales.map((s) => s.qty) },
-        forecast: { dates: [], predictions: [], lower: [], upper: [] },
+        timeline: { dates: sales.map((s) => s.date), values: sales.map((s) => Number(s.qty) || 0) },
+        forecast: { dates: predDates, predictions: predVals, lower: predVals.map(v => Math.max(0, v - 4)), upper: predVals.map(v => v + 8) },
         metrics: { mae: 0, rmse: 0, modelDetails: model }
       };
     }
 
     if (endpoint.startsWith('/api/chat')) {
-      const { message } = JSON.parse(options.body);
       return { reply: "I can answer questions about your stock, restock needs, and suppliers." };
     }
 

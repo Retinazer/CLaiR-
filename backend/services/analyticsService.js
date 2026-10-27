@@ -1,27 +1,139 @@
 const store = require('../data/store');
 const { generateForecast, SPARSE_DAILY_THRESHOLD, RICH_DAILY_THRESHOLD } = require('./forecastingEngine');
 
+/**
+ * Calculates the dynamic reorder point for an inventory item automatically via supply chain algorithm:
+ * ROP = (Average Daily Demand * Lead Time) + Safety Stock
+ * where Safety Stock = Z * sqrt(Lead Time) * StdDev(Daily Demand)
+ * Z = 1.65 (95% cycle service level)
+ * Lead time defaults to 3 days (or from matching supplier).
+ */
+function calculateItemMetrics(item, sales = [], suppliers = []) {
+  const itemName = String(item.name || '').trim().toLowerCase();
+  const itemSku = String(item.sku || '').trim().toLowerCase();
+
+  // Determine supplier lead time (default 3 days if not specified or linked)
+  let leadTime = 3;
+  if (Array.isArray(suppliers) && suppliers.length > 0) {
+    const matchedSup = suppliers.find((s) => {
+      const supCat = String(s.category || '').toLowerCase();
+      const supName = String(s.name || '').toLowerCase();
+      return supCat.includes(itemName) || itemName.includes(supCat) || supName.includes(itemName);
+    });
+    if (matchedSup && Number(matchedSup.leadTimeDays)) {
+      leadTime = Math.max(1, Number(matchedSup.leadTimeDays));
+    }
+  }
+
+  // Filter sales for this item
+  const itemSales = (sales || []).filter((s) => {
+    const sItem = String(s.item || '').trim().toLowerCase();
+    return sItem === itemName || sItem === itemSku;
+  });
+
+  let dailyDemand = 0;
+  let stdDevDemand = 0;
+  let autoReorder = 0;
+  let safetyStock = 0;
+
+  if (itemSales.length > 0) {
+    const dailyMap = {};
+    itemSales.forEach((s) => {
+      const d = s.date;
+      dailyMap[d] = (dailyMap[d] || 0) + (Number(s.qty) || 0);
+    });
+
+    const dates = Object.keys(dailyMap).sort();
+    const firstDate = new Date(dates[0] + 'T12:00:00Z');
+    const lastDate = new Date(dates[dates.length - 1] + 'T12:00:00Z');
+    const spanDays = Math.max(1, Math.round((lastDate - firstDate) / 864e5) + 1);
+
+    const dailyVals = Object.values(dailyMap);
+    const totalQty = dailyVals.reduce((a, b) => a + b, 0);
+    dailyDemand = totalQty / spanDays;
+
+    let sumSqDiff = 0;
+    dailyVals.forEach((v) => {
+      sumSqDiff += Math.pow(v - dailyDemand, 2);
+    });
+    const zeroDays = Math.max(0, spanDays - dailyVals.length);
+    sumSqDiff += zeroDays * Math.pow(0 - dailyDemand, 2);
+
+    stdDevDemand = Math.sqrt(sumSqDiff / spanDays);
+
+    // Z = 1.65 (95% Service Level)
+    const Z = 1.65;
+    safetyStock = Math.ceil(Z * Math.sqrt(leadTime) * stdDevDemand);
+    safetyStock = Math.max(1, safetyStock, Math.ceil(dailyDemand * 0.5));
+
+    const leadTimeDemand = dailyDemand * leadTime;
+    autoReorder = Math.ceil(leadTimeDemand + safetyStock);
+  } else {
+    // Cold start (no sales transactions logged yet for this item):
+    // Auto-configure baseline reorder point from on-hand stock or standard safety threshold
+    const onHand = Number(item.qty) || 0;
+    autoReorder = Math.max(2, Math.round(onHand * 0.25));
+    safetyStock = Math.max(1, Math.round(autoReorder * 0.4));
+    dailyDemand = 0;
+  }
+
+  autoReorder = Math.max(1, autoReorder);
+
+  const daysOfStock = dailyDemand > 0 ? Math.round(item.qty / dailyDemand) : null;
+  const suggestedQty = Math.max(0, autoReorder * 2 - item.qty);
+
+  let status = 'good';
+  if (item.qty <= 0 || item.qty < autoReorder / 2) {
+    status = 'critical';
+  } else if (item.qty < autoReorder) {
+    status = 'low';
+  }
+
+  return {
+    ...item,
+    reorder: autoReorder,
+    autoReorder,
+    reorderAuto: true,
+    leadTimeDays: leadTime,
+    safetyStock,
+    dailyDemand: Math.round(dailyDemand * 10) / 10,
+    daysOfStock,
+    suggestedQty,
+    status
+  };
+}
+
+function getEnhancedInventory() {
+  const inventory = store.getInventory();
+  const sales = store.getSales();
+  const suppliers = store.getSuppliers();
+  return inventory.map((it) => calculateItemMetrics(it, sales, suppliers));
+}
+
 function getItemStatus(item) {
-  if (item.qty <= 0 || item.qty < item.reorder / 2) return 'critical';
-  if (item.qty < item.reorder) return 'low';
-  return 'good';
+  if (item.status) return item.status;
+  const sales = store.getSales();
+  const suppliers = store.getSuppliers();
+  const enhanced = calculateItemMetrics(item, sales, suppliers);
+  return enhanced.status;
 }
 
 function getStatusCounts(inventory) {
   const counts = { critical: 0, low: 0, good: 0, total: inventory.length };
   inventory.forEach((item) => {
-    counts[getItemStatus(item)]++;
+    counts[item.status || getItemStatus(item)]++;
   });
   return counts;
 }
 
 function getOverviewData() {
-  const inventory = store.getInventory();
+  const inventory = getEnhancedInventory();
   const sales = store.getSales();
   const profile = store.getProfile();
-  const simulationState = store.getSimulationState ? store.getSimulationState() : { isSimulated: false, currentDate: new Date().toISOString().slice(0, 10), dayOffset: 0 };
+  const simulationState = store.getSimulationState
+    ? store.getSimulationState()
+    : { isSimulated: false, currentDate: new Date().toISOString().slice(0, 10), dayOffset: 0 };
 
-  const now = new Date(simulationState.currentDate + 'T12:00:00');
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
@@ -57,12 +169,11 @@ function getOverviewData() {
   }
 
   const urgentItems = inventory
-    .filter((it) => getItemStatus(it) !== 'good')
-    .sort((a, b) => (getItemStatus(a) === 'critical' ? 0 : 1) - (getItemStatus(b) === 'critical' ? 0 : 1))
+    .filter((it) => it.status !== 'good')
+    .sort((a, b) => (a.status === 'critical' ? 0 : 1) - (b.status === 'critical' ? 0 : 1))
     .slice(0, 3)
     .map((it) => ({
       ...it,
-      status: getItemStatus(it),
       suggestedQty: Math.max(0, it.reorder - it.qty)
     }));
 
@@ -84,13 +195,12 @@ function getOverviewData() {
 }
 
 function getRestockRecommendations() {
-  const inventory = store.getInventory();
+  const inventory = getEnhancedInventory();
   return inventory
     .filter((it) => it.qty < it.reorder)
     .map((it) => ({
       ...it,
-      status: getItemStatus(it),
-      suggestedQty: it.reorder - it.qty
+      suggestedQty: Math.max(0, it.reorder * 2 - it.qty)
     }));
 }
 
@@ -139,9 +249,12 @@ function getSalesSummary(days = 30) {
 }
 
 module.exports = {
+  calculateItemMetrics,
+  getEnhancedInventory,
   getItemStatus,
   getStatusCounts,
   getOverviewData,
   getRestockRecommendations,
   getSalesSummary
 };
+

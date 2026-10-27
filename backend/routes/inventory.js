@@ -1,15 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const store = require('../data/store');
-const { getItemStatus } = require('../services/analyticsService');
+const { getEnhancedInventory, calculateItemMetrics } = require('../services/analyticsService');
 
 // GET /api/inventory
 router.get('/', (req, res) => {
   try {
-    const items = store.getInventory().map((item) => ({
-      ...item,
-      status: getItemStatus(item)
-    }));
+    const items = getEnhancedInventory();
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -19,15 +16,13 @@ router.get('/', (req, res) => {
 // POST /api/inventory
 router.post('/', (req, res) => {
   try {
-    const { sku, name, qty, unit, reorder } = req.body;
+    const { sku, name, qty, unit } = req.body;
     if (!sku || !name) {
       return res.status(400).json({ error: 'SKU and item name are required' });
     }
-    const item = store.addInventoryItem({ sku, name, qty, unit, reorder });
-    res.status(201).json({
-      ...item,
-      status: getItemStatus(item)
-    });
+    const item = store.addInventoryItem({ sku, name, qty, unit });
+    const enhanced = calculateItemMetrics(item, store.getSales(), store.getSuppliers());
+    res.status(201).json(enhanced);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
